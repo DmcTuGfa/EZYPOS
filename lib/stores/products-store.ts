@@ -23,6 +23,7 @@ interface ProductsState {
   getProductWithStock: (productId: string, branchId: string) => { product: Product; stock: number } | null
   createProduct: (data: Omit<Product, 'id' | 'createdAt' | 'updatedAt'>) => Product
   updateProduct: (id: string, data: Partial<Product>) => Product | undefined
+  saveProduct: (product: Product) => Product | undefined
   deleteProduct: (id: string) => boolean
   createCategory: (data: Omit<Category, 'id' | 'createdAt'>) => Category
   updateCategory: (id: string, data: Partial<Category>) => Category | undefined
@@ -88,6 +89,22 @@ export const useProductsStore = create<ProductsState>((set, get) => ({
       set({ products })
     }
     return updated
+  },
+
+
+  saveProduct: (product) => {
+    if (productsDB.getById(product.id)) {
+      const updated = productsDB.update(product.id, product)
+      if (updated) {
+        set({ products: productsDB.getActive() })
+      }
+      return updated
+    }
+
+    const { id: _id, createdAt: _createdAt, updatedAt: _updatedAt, ...data } = product
+    const created = productsDB.create(data)
+    set({ products: productsDB.getActive() })
+    return created
   },
 
   deleteProduct: (id) => {

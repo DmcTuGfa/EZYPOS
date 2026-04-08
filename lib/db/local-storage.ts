@@ -414,6 +414,14 @@ export const customersDB = {
     setToStorage(STORAGE_KEYS.CUSTOMERS, customers)
     return customers[index]
   },
+  delete: (id: string): boolean => {
+    const customers = customersDB.getAll()
+    const index = customers.findIndex((c) => c.id === id)
+    if (index === -1) return false
+    customers[index] = { ...customers[index], isActive: false, updatedAt: new Date() }
+    setToStorage(STORAGE_KEYS.CUSTOMERS, customers)
+    return true
+  },
 }
 
 // --- CASH REGISTERS ---
@@ -697,5 +705,55 @@ export const settingsDB = {
     const updated = { ...current, ...data }
     setToStorage(STORAGE_KEYS.SETTINGS, updated)
     return updated
+  },
+}
+
+
+// --- COMPATIBILIDAD LEGACY ---
+
+export const db = {
+  roles: rolesDB,
+  users: usersDB,
+  branches: branchesDB,
+  categories: categoriesDB,
+  products: productsDB,
+  customers: customersDB,
+  cashRegisters: cashRegistersDB,
+  cashSessions: cashSessionsDB,
+  cashMovements: cashMovementsDB,
+  sales: salesDB,
+  invoices: invoicesDB,
+  inventoryMovements: inventoryMovementsDB,
+  settings: settingsDB,
+  productStock: {
+    getAll: productStockDB.getAll,
+    getByProduct: productStockDB.getByProduct,
+    getByBranch: productStockDB.getByBranch,
+    getByProductAndBranch: productStockDB.get,
+    get: productStockDB.get,
+    create: (stock: ProductStock): ProductStock => {
+      return productStockDB.update(stock.productId, stock.branchId, stock.quantity)
+    },
+    update: (id: string, data: Partial<ProductStock>): ProductStock | undefined => {
+      const current = productStockDB.getAll().find((s) => s.id === id)
+      if (!current) return undefined
+      return productStockDB.update(
+        data.productId ?? current.productId,
+        data.branchId ?? current.branchId,
+        data.quantity ?? current.quantity
+      )
+    },
+  },
+  saleItems: {
+    getAll: saleItemsDB.getAll,
+    getBySale: saleItemsDB.getBySale,
+    getBySaleId: saleItemsDB.getBySale,
+    createMany: saleItemsDB.createMany,
+  },
+  salePayments: {
+    getAll: salePaymentsDB.getAll,
+    getBySale: salePaymentsDB.getBySale,
+    getBySaleId: salePaymentsDB.getBySale,
+    createMany: salePaymentsDB.createMany,
   },
 }
