@@ -107,7 +107,7 @@ export default function CashRegisterPage() {
     }
   }, [currentBranch])
 
-  const handleOpenSession = () => {
+  const handleOpenSession = async () => {
     if (!user || !currentBranch || !selectedRegister) {
       toast.error('Selecciona una caja para abrir')
       return
@@ -115,7 +115,7 @@ export default function CashRegisterPage() {
 
     const amount = parseFloat(openingAmount) || 0
 
-    const session = openSession(selectedRegister, user.id, currentBranch.id, amount)
+    const session = await openSession(selectedRegister, user.id, currentBranch.id, amount)
     
     if (session) {
       toast.success('Caja abierta exitosamente')
@@ -127,11 +127,11 @@ export default function CashRegisterPage() {
     }
   }
 
-  const handleCloseSession = () => {
+  const handleCloseSession = async () => {
     if (!currentSession) return
 
     const amount = parseFloat(closingAmount) || 0
-    const closed = closeSession(amount, closingNotes)
+    const closed = await closeSession(amount, closingNotes)
 
     if (closed) {
       toast.success('Caja cerrada exitosamente')
@@ -152,7 +152,7 @@ export default function CashRegisterPage() {
     }
   }
 
-  const handleAddMovement = () => {
+  const handleAddMovement = async () => {
     if (!user || !currentSession) return
 
     const amount = parseFloat(movementAmount)
@@ -161,7 +161,7 @@ export default function CashRegisterPage() {
       return
     }
 
-    const movement = addMovement(
+    const movement = await addMovement(
       movementType,
       amount,
       movementDescription || (movementType === 'deposit' ? 'Depósito en caja' : 'Retiro de caja'),
