@@ -6,3 +6,6 @@ PASOS RAPIDOS
    admin@ventamx.com / admin123
    supervisor@ventamx.com / supervisor123
    cajero@ventamx.com / cajero123
+
+
+Ajustes: la raíz redirige a /login, el arranque usa standalone en Railway y SEED_DEMO está desactivado por defecto. Si quieres demo data, agrega SEED_DEMO=true.

@@ -4,6 +4,7 @@ import { pool } from '@/lib/server/db'
 import { DEMO_BRANCHES, DEMO_CATEGORIES, DEMO_CASH_REGISTERS, DEMO_CUSTOMERS, DEMO_PRODUCTS, DEMO_PRODUCT_STOCK, DEMO_ROLES, DEMO_USERS } from '@/lib/data/demo-data'
 
 let initialized = false
+const shouldSeedDemo = process.env.SEED_DEMO === 'true'
 
 function json(v: unknown) {
   return JSON.stringify(v)
@@ -200,6 +201,11 @@ export async function ensureDatabaseSetup() {
 
   const { rows } = await pool.query('SELECT COUNT(*)::int AS count FROM roles')
   if (rows[0]?.count > 0) {
+    initialized = true
+    return
+  }
+
+  if (!shouldSeedDemo) {
     initialized = true
     return
   }

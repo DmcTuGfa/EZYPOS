@@ -5,7 +5,7 @@
   "scripts": {
     "dev": "next dev",
     "build": "next build --webpack",
-    "start": "next start -H 0.0.0.0 -p ${PORT:-3000}"
+    "start": "HOSTNAME=0.0.0.0 PORT=${PORT:-3000} node .next/standalone/server.js"
   },
   "engines": {
     "node": ">=20.9.0"
