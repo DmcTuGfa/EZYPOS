@@ -1,10 +1,7 @@
-// ===========================================
-// STORE DE PRODUCTOS
-// ===========================================
-
 import { create } from 'zustand'
-import type { Product, Category, ProductStock } from '@/lib/types'
-import { productsDB, categoriesDB, productStockDB } from '@/lib/db/local-storage'
+import type { Category, Product } from '@/lib/types'
+import { apiFetch } from '@/lib/api/client'
+import { hydrateDatabaseCache, productStockDB } from '@/lib/db/local-storage'
 
 interface ProductsState {
   products: Product[]
@@ -12,154 +9,73 @@ interface ProductsState {
   isLoading: boolean
   searchQuery: string
   selectedCategory: string | null
-  
-  // Actions
-  loadProducts: () => void
-  loadCategories: () => void
+  loadProducts: () => Promise<void>
+  loadCategories: () => Promise<void>
   setSearchQuery: (query: string) => void
   setSelectedCategory: (categoryId: string | null) => void
   searchProducts: (query: string) => Product[]
   getProductsByCategory: (categoryId: string) => Product[]
   getProductWithStock: (productId: string, branchId: string) => { product: Product; stock: number } | null
-  createProduct: (data: Omit<Product, 'id' | 'createdAt' | 'updatedAt'>) => Product
-  updateProduct: (id: string, data: Partial<Product>) => Product | undefined
-  saveProduct: (product: Product) => Product | undefined
-  deleteProduct: (id: string) => boolean
-  createCategory: (data: Omit<Category, 'id' | 'createdAt'>) => Category
-  updateCategory: (id: string, data: Partial<Category>) => Category | undefined
+  createProduct: (data: Omit<Product, 'id' | 'createdAt' | 'updatedAt'>) => Promise<Product>
+  updateProduct: (id: string, data: Partial<Product>) => Promise<Product | undefined>
+  saveProduct: (product: Product) => Promise<Product | undefined>
+  deleteProduct: (id: string) => Promise<boolean>
+  createCategory: (data: Omit<Category, 'id' | 'createdAt'>) => Promise<Category>
+  updateCategory: (id: string, data: Partial<Category>) => Promise<Category | undefined>
   getFilteredProducts: () => Product[]
 }
 
 export const useProductsStore = create<ProductsState>((set, get) => ({
-  products: [],
-  categories: [],
-  isLoading: false,
-  searchQuery: '',
-  selectedCategory: null,
-
-  loadProducts: () => {
+  products: [], categories: [], isLoading: false, searchQuery: '', selectedCategory: null,
+  loadProducts: async () => {
     set({ isLoading: true })
-    const products = productsDB.getActive()
-    set({ products, isLoading: false })
+    const data = await apiFetch<{ products: Product[]; productStock: any[] }>('/api/products')
+    hydrateDatabaseCache({ products: data.products, productStock: data.productStock })
+    set({ products: data.products, isLoading: false })
   },
-
-  loadCategories: () => {
-    const categories = categoriesDB.getActive()
-    set({ categories })
+  loadCategories: async () => {
+    const data = await apiFetch<{ categories: Category[] }>('/api/categories')
+    hydrateDatabaseCache({ categories: data.categories })
+    set({ categories: data.categories })
   },
-
-  setSearchQuery: (query: string) => {
-    set({ searchQuery: query })
-  },
-
-  setSelectedCategory: (categoryId: string | null) => {
-    set({ selectedCategory: categoryId })
-  },
-
-  searchProducts: (query: string): Product[] => {
-    return productsDB.search(query)
-  },
-
-  getProductsByCategory: (categoryId: string): Product[] => {
-    return productsDB.getByCategory(categoryId)
-  },
-
-  getProductWithStock: (productId: string, branchId: string) => {
-    const product = productsDB.getById(productId)
+  setSearchQuery: (query) => set({ searchQuery: query }),
+  setSelectedCategory: (categoryId) => set({ selectedCategory: categoryId }),
+  searchProducts: (query) => get().products.filter((p) => [p.name,p.sku,p.barcode].some(v => v.toLowerCase().includes(query.toLowerCase()))),
+  getProductsByCategory: (categoryId) => get().products.filter((p) => p.categoryId === categoryId),
+  getProductWithStock: (productId, branchId) => {
+    const product = get().products.find((p) => p.id === productId)
     if (!product) return null
-    
-    const stockRecord = productStockDB.get(productId, branchId)
-    return {
-      product,
-      stock: stockRecord?.quantity || 0,
-    }
+    return { product, stock: productStockDB.get(productId, branchId)?.quantity || 0 }
   },
-
-  createProduct: (data) => {
-    const newProduct = productsDB.create(data)
-    const products = productsDB.getActive()
+  createProduct: async (data) => {
+    const res = await apiFetch<{ product: Product }>('/api/products', { method: 'POST', body: JSON.stringify(data) })
+    const products = [...get().products, res.product]
+    hydrateDatabaseCache({ products })
     set({ products })
-    return newProduct
+    return res.product
   },
-
-  updateProduct: (id, data) => {
-    const updated = productsDB.update(id, data)
-    if (updated) {
-      const products = productsDB.getActive()
-      set({ products })
-    }
-    return updated
+  updateProduct: async (id, data) => {
+    const res = await apiFetch<{ product: Product }>(`/api/products/${id}`, { method: 'PATCH', body: JSON.stringify(data) })
+    const products = get().products.map((p) => p.id === id ? res.product : p)
+    hydrateDatabaseCache({ products })
+    set({ products })
+    return res.product
   },
-
-
-  saveProduct: (product) => {
-    if (productsDB.getById(product.id)) {
-      const updated = productsDB.update(product.id, product)
-      if (updated) {
-        set({ products: productsDB.getActive() })
-      }
-      return updated
-    }
-
-    const { id: _id, createdAt: _createdAt, updatedAt: _updatedAt, ...data } = product
-    const created = productsDB.create(data)
-    set({ products: productsDB.getActive() })
-    return created
+  saveProduct: async (product) => product.id ? get().updateProduct(product.id, product) : get().createProduct(product as any),
+  deleteProduct: async (id) => {
+    await apiFetch(`/api/products/${id}`, { method: 'DELETE' })
+    const products = get().products.filter((p) => p.id !== id)
+    hydrateDatabaseCache({ products })
+    set({ products })
+    return true
   },
-
-  deleteProduct: (id) => {
-    const deleted = productsDB.delete(id)
-    if (deleted) {
-      const products = productsDB.getActive()
-      set({ products })
-    }
-    return deleted
-  },
-
-  createCategory: (data) => {
-    const newCategory = categoriesDB.create(data)
-    const categories = categoriesDB.getActive()
-    set({ categories })
-    return newCategory
-  },
-
-  updateCategory: (id, data) => {
-    const updated = categoriesDB.update(id, data)
-    if (updated) {
-      const categories = categoriesDB.getActive()
-      set({ categories })
-    }
-    return updated
-  },
-
-  getFilteredProducts: (): Product[] => {
+  createCategory: async (data) => ({ id: crypto.randomUUID(), ...data, createdAt: new Date() }),
+  updateCategory: async () => undefined,
+  getFilteredProducts: () => {
     const { products, searchQuery, selectedCategory } = get()
-    
-    let filtered = products
-    
-    if (searchQuery) {
-      const query = searchQuery.toLowerCase()
-      filtered = filtered.filter(
-        (p) =>
-          p.name.toLowerCase().includes(query) ||
-          p.sku.toLowerCase().includes(query) ||
-          p.barcode.includes(searchQuery)
-      )
-    }
-    
-    if (selectedCategory) {
-      filtered = filtered.filter((p) => p.categoryId === selectedCategory)
-    }
-    
-    return filtered
+    return products.filter((p) => (!searchQuery || [p.name,p.sku,p.barcode].some(v => v.toLowerCase().includes(searchQuery.toLowerCase()))) && (!selectedCategory || p.categoryId === selectedCategory))
   },
 }))
 
-// Hooks de conveniencia
-export function useProducts(): Product[] {
-  return useProductsStore((state) => state.products)
-}
-
-export function useCategories(): Category[] {
-  return useProductsStore((state) => state.categories)
-}
+export function useProducts(): Product[] { return useProductsStore((state) => state.products) }
+export function useCategories(): Category[] { return useProductsStore((state) => state.categories) }

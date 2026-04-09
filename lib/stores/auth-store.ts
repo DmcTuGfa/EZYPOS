@@ -1,20 +1,16 @@
-// ===========================================
-// STORE DE AUTENTICACIÓN
-// ===========================================
-
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
-import type { AuthUser, User, Role, Branch } from '@/lib/types'
-import { usersDB, rolesDB, branchesDB, initializeDatabase } from '@/lib/db/local-storage'
+import type { AuthUser } from '@/lib/types'
+import { apiFetch } from '@/lib/api/client'
+import { hydrateDatabaseCache } from '@/lib/db/local-storage'
 
 interface AuthState {
   user: AuthUser | null
   isLoading: boolean
   isInitialized: boolean
   error: string | null
-  
-  // Actions
-  initialize: () => void
+  isAuthenticated: boolean
+  initialize: () => Promise<void>
   login: (email: string, password: string) => Promise<boolean>
   logout: () => void
   clearError: () => void
@@ -28,97 +24,56 @@ export const useAuthStore = create<AuthState>()(
       isLoading: false,
       isInitialized: false,
       error: null,
+      isAuthenticated: false,
 
-      initialize: () => {
-        initializeDatabase()
-        set({ isInitialized: true })
-      },
-
-      login: async (email: string, password: string): Promise<boolean> => {
+      initialize: async () => {
+        if (get().isInitialized) return
         set({ isLoading: true, error: null })
-        
-        // Simulate network delay
-        await new Promise((resolve) => setTimeout(resolve, 500))
-        
-        const user = usersDB.getByEmail(email)
-        
-        if (!user) {
-          set({ isLoading: false, error: 'Usuario no encontrado' })
-          return false
+        try {
+          const bootstrap = await apiFetch<Record<string, unknown>>('/api/bootstrap')
+          hydrateDatabaseCache(bootstrap)
+          set((state) => ({ isInitialized: true, isLoading: false, isAuthenticated: !!state.user }))
+        } catch (error) {
+          set({ isInitialized: true, isLoading: false, error: error instanceof Error ? error.message : 'No se pudo inicializar' })
         }
-        
-        if (!user.isActive) {
-          set({ isLoading: false, error: 'Usuario inactivo' })
-          return false
-        }
-        
-        // In production, this would be bcrypt.compare
-        if (user.passwordHash !== password) {
-          set({ isLoading: false, error: 'Contraseña incorrecta' })
-          return false
-        }
-        
-        const role = rolesDB.getById(user.roleId)
-        if (!role) {
-          set({ isLoading: false, error: 'Rol no encontrado' })
-          return false
-        }
-        
-        let branch: Branch | null = null
-        if (user.branchId) {
-          branch = branchesDB.getById(user.branchId) || null
-        }
-        
-        const authUser: AuthUser = {
-          id: user.id,
-          email: user.email,
-          name: user.name,
-          role,
-          branch,
-          isGlobalAccess: user.isGlobalAccess,
-        }
-        
-        set({ user: authUser, isLoading: false, error: null })
-        return true
       },
 
-      logout: () => {
-        set({ user: null, error: null })
+      login: async (email, password) => {
+        set({ isLoading: true, error: null })
+        try {
+          const data = await apiFetch<{ user: AuthUser }>('/api/auth/login', {
+            method: 'POST',
+            body: JSON.stringify({ email, password }),
+          })
+          set({ user: data.user, isLoading: false, error: null, isAuthenticated: true })
+          return true
+        } catch (error) {
+          set({ isLoading: false, error: error instanceof Error ? error.message : 'Error de inicio de sesión', isAuthenticated: false })
+          return false
+        }
       },
 
-      clearError: () => {
-        set({ error: null })
-      },
-
-      hasPermission: (permission: string): boolean => {
-        const { user } = get()
+      logout: () => set({ user: null, error: null, isAuthenticated: false }),
+      clearError: () => set({ error: null }),
+      hasPermission: (permission) => {
+        const user = get().user
         if (!user) return false
-        
-        // Admin has all permissions
-        if (user.role.permissions.includes('*')) return true
-        
-        // Check specific permission
-        return user.role.permissions.includes(permission)
+        return user.role.permissions.includes('*') || user.role.permissions.includes(permission)
       },
     }),
     {
       name: 'ventamx-auth',
-      partialize: (state) => ({ user: state.user }),
+      partialize: (state) => ({ user: state.user, isAuthenticated: state.isAuthenticated }),
     }
   )
 )
 
-// Hook para obtener el usuario con su rol expandido
 export function useCurrentUser(): AuthUser | null {
   return useAuthStore((state) => state.user)
 }
-
-// Hook para verificar si el usuario está autenticado
 export function useIsAuthenticated(): boolean {
-  return useAuthStore((state) => state.user !== null)
+  return useAuthStore((state) => state.isAuthenticated)
 }
-
-// Hook para verificar permisos
 export function useHasPermission(permission: string): boolean {
   return useAuthStore((state) => state.hasPermission(permission))
 }

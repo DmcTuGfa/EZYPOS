@@ -1,42 +1,8 @@
-// ===========================================
-// STORE DE CAJA / SESIONES DE CAJA
-// ===========================================
-
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
-import type { CashSession, CashRegister, CashMovement, PaymentMethod } from '@/lib/types'
-import {
-  cashSessionsDB,
-  cashRegistersDB,
-  cashMovementsDB,
-  salesDB,
-  salePaymentsDB,
-} from '@/lib/db/local-storage'
-
-interface CashState {
-  currentSession: CashSession | null
-  registers: CashRegister[]
-  isLoading: boolean
-  
-  // Actions
-  loadRegisters: (branchId: string) => void
-  openSession: (
-    registerId: string,
-    userId: string,
-    branchId: string,
-    openingAmount: number
-  ) => CashSession | null
-  closeSession: (closingAmount: number, notes: string) => CashSession | null
-  loadCurrentSession: (userId: string) => void
-  addMovement: (
-    type: CashMovement['type'],
-    amount: number,
-    description: string,
-    userId: string,
-    referenceId?: string
-  ) => CashMovement | null
-  getSessionSummary: () => SessionSummary | null
-}
+import type { CashMovement, CashRegister, CashSession, PaymentMethod } from '@/lib/types'
+import { apiFetch } from '@/lib/api/client'
+import { cashMovementsDB, cashRegistersDB, cashSessionsDB, hydrateDatabaseCache, salePaymentsDB, salesDB } from '@/lib/db/local-storage'
 
 interface SessionSummary {
   totalSales: number
@@ -47,6 +13,17 @@ interface SessionSummary {
   returns: number
   expectedCash: number
 }
+interface CashState {
+  currentSession: CashSession | null
+  registers: CashRegister[]
+  isLoading: boolean
+  loadRegisters: (branchId: string) => Promise<void>
+  openSession: (registerId: string, userId: string, branchId: string, openingAmount: number) => Promise<CashSession | null>
+  closeSession: (closingAmount: number, notes: string) => Promise<CashSession | null>
+  loadCurrentSession: (userId?: string) => Promise<void>
+  addMovement: (type: CashMovement['type'], amount: number, description: string, userId: string, referenceId?: string) => Promise<CashMovement | null>
+  getSessionSummary: () => SessionSummary | null
+}
 
 export const useCashStore = create<CashState>()(
   persist(
@@ -54,165 +31,62 @@ export const useCashStore = create<CashState>()(
       currentSession: null,
       registers: [],
       isLoading: false,
-
-      loadRegisters: (branchId: string) => {
+      loadRegisters: async (branchId) => {
         set({ isLoading: true })
-        const registers = cashRegistersDB.getByBranch(branchId)
-        set({ registers, isLoading: false })
+        const data = await apiFetch<{ registers: CashRegister[] }>(`/api/cash/registers?branchId=${branchId}`)
+        hydrateDatabaseCache({ cashRegisters: data.registers })
+        set({ registers: data.registers, isLoading: false })
       },
-
-      openSession: (
-        registerId: string,
-        userId: string,
-        branchId: string,
-        openingAmount: number
-      ): CashSession | null => {
-        // Check if user already has an open session
-        const existingUserSession = cashSessionsDB.getOpenByUser(userId)
-        if (existingUserSession) {
-          return null // User already has an open session
-        }
-        
-        // Check if register already has an open session
-        const existingRegisterSession = cashSessionsDB.getOpenByRegister(registerId)
-        if (existingRegisterSession) {
-          return null // Register already has an open session
-        }
-        
-        const session = cashSessionsDB.create({
-          cashRegisterId: registerId,
-          userId,
-          branchId,
-          openingAmount,
-          closingAmount: null,
-          expectedAmount: null,
-          difference: null,
-          status: 'open',
-          notes: '',
-          closedAt: null,
-        })
-        
-        set({ currentSession: session })
-        return session
+      openSession: async (registerId, userId, branchId, openingAmount) => {
+        const res = await apiFetch<{ session: CashSession }>('/api/cash/sessions', { method: 'POST', body: JSON.stringify({ cashRegisterId: registerId, userId, branchId, openingAmount }) })
+        const sessions = [res.session, ...cashSessionsDB.getAll()]
+        hydrateDatabaseCache({ cashSessions: sessions })
+        set({ currentSession: res.session })
+        return res.session
       },
-
-      closeSession: (closingAmount: number, notes: string): CashSession | null => {
-        const { currentSession, getSessionSummary } = get()
+      closeSession: async (closingAmount, notes) => {
+        const currentSession = get().currentSession
+        const summary = get().getSessionSummary()
+        if (!currentSession || !summary) return null
+        const res = await apiFetch<{ session: CashSession }>(`/api/cash/sessions/${currentSession.id}/close`, { method: 'POST', body: JSON.stringify({ closingAmount, expectedAmount: summary.expectedCash, notes }) })
+        const sessions = cashSessionsDB.getAll().map((s) => s.id === currentSession.id ? res.session : s)
+        hydrateDatabaseCache({ cashSessions: sessions })
+        set({ currentSession: null })
+        return res.session
+      },
+      loadCurrentSession: async (userId) => {
+        if (!userId) { set({ currentSession: null }); return }
+        const data = await apiFetch<{ session: CashSession | null }>(`/api/cash/sessions?userId=${userId}`)
+        if (data.session) hydrateDatabaseCache({ cashSessions: [data.session, ...cashSessionsDB.getAll().filter((s) => s.id !== data.session?.id)] })
+        set({ currentSession: data.session })
+      },
+      addMovement: async (type, amount, description, userId, referenceId) => {
+        const session = get().currentSession
+        if (!session) return null
+        const res = await apiFetch<{ movement: CashMovement }>('/api/cash/movements', { method: 'POST', body: JSON.stringify({ cashSessionId: session.id, type, amount, description, userId, referenceId }) })
+        hydrateDatabaseCache({ cashMovements: [res.movement, ...cashMovementsDB.getAll()] })
+        return res.movement
+      },
+      getSessionSummary: () => {
+        const currentSession = get().currentSession
         if (!currentSession) return null
-        
-        const summary = getSessionSummary()
-        if (!summary) return null
-        
-        const closedSession = cashSessionsDB.close(
-          currentSession.id,
-          closingAmount,
-          summary.expectedCash,
-          notes
-        )
-        
-        if (closedSession) {
-          set({ currentSession: null })
-        }
-        
-        return closedSession || null
-      },
-
-      loadCurrentSession: (userId: string) => {
-        const session = cashSessionsDB.getOpenByUser(userId)
-        set({ currentSession: session || null })
-      },
-
-      addMovement: (
-        type: CashMovement['type'],
-        amount: number,
-        description: string,
-        userId: string,
-        referenceId?: string
-      ): CashMovement | null => {
-        const { currentSession } = get()
-        if (!currentSession) return null
-        
-        const movement = cashMovementsDB.create({
-          cashSessionId: currentSession.id,
-          type,
-          amount,
-          description,
-          referenceId: referenceId || null,
-          userId,
-        })
-        
-        return movement
-      },
-
-      getSessionSummary: (): SessionSummary | null => {
-        const { currentSession } = get()
-        if (!currentSession) return null
-        
-        // Get all sales for this session
-        const sales = salesDB.getBySession(currentSession.id)
-        const completedSales = sales.filter((s) => s.status === 'completed')
-        
-        // Calculate totals by payment method
-        const byPaymentMethod: Record<PaymentMethod, number> = {
-          cash: 0,
-          card: 0,
-          transfer: 0,
-          voucher: 0,
-        }
-        
+        const sales = salesDB.getBySession(currentSession.id).filter((s) => s.status === 'completed')
+        const byPaymentMethod: Record<PaymentMethod, number> = { cash: 0, card: 0, transfer: 0, voucher: 0 }
         let totalSales = 0
-        
-        for (const sale of completedSales) {
+        for (const sale of sales) {
           totalSales += sale.total
-          const payments = salePaymentsDB.getBySale(sale.id)
-          for (const payment of payments) {
-            byPaymentMethod[payment.method] += payment.amount - payment.changeAmount
-          }
+          for (const payment of salePaymentsDB.getBySale(sale.id)) byPaymentMethod[payment.method] += payment.amount - payment.changeAmount
         }
-        
-        // Get movements for this session
         const movements = cashMovementsDB.getBySession(currentSession.id)
-        
-        let withdrawals = 0
-        let deposits = 0
-        let returns = 0
-        
-        for (const movement of movements) {
-          if (movement.type === 'withdrawal') withdrawals += movement.amount
-          if (movement.type === 'deposit') deposits += movement.amount
-          if (movement.type === 'return') returns += movement.amount
-        }
-        
-        // Calculate expected cash
-        const expectedCash =
-          currentSession.openingAmount +
-          byPaymentMethod.cash -
-          withdrawals +
-          deposits -
-          returns
-        
-        return {
-          totalSales,
-          salesCount: completedSales.length,
-          byPaymentMethod,
-          withdrawals,
-          deposits,
-          returns,
-          expectedCash,
-        }
+        const withdrawals = movements.filter((m) => m.type === 'withdrawal').reduce((s, m) => s + m.amount, 0)
+        const deposits = movements.filter((m) => m.type === 'deposit').reduce((s, m) => s + m.amount, 0)
+        const returns = movements.filter((m) => m.type === 'return').reduce((s, m) => s + m.amount, 0)
+        return { totalSales, salesCount: sales.length, byPaymentMethod, withdrawals, deposits, returns, expectedCash: currentSession.openingAmount + byPaymentMethod.cash - withdrawals + deposits - returns }
       },
     }),
-    {
-      name: 'ventamx-cash',
-      partialize: (state) => ({ currentSession: state.currentSession }),
-    }
+    { name: 'ventamx-cash', partialize: (state) => ({ currentSession: state.currentSession }) }
   )
 )
 
-export function useCurrentSession(): CashSession | null {
-  return useCashStore((state) => state.currentSession)
-}
-
-export function useHasOpenSession(): boolean {
-  return useCashStore((state) => state.currentSession !== null)
-}
+export function useCurrentSession(): CashSession | null { return useCashStore((state) => state.currentSession) }
+export function useHasOpenSession(): boolean { return useCashStore((state) => state.currentSession !== null) }
