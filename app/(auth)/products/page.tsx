@@ -65,8 +65,8 @@ export default function ProductsPage() {
   })
 
   useEffect(() => {
-    await loadProducts()
-    loadCategories()
+    void loadProducts()
+    void loadCategories()
   }, [loadProducts, loadCategories])
 
   const filteredProducts = products.filter(product => {
