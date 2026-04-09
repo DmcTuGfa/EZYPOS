@@ -1,3 +1,4 @@
+
 import bcrypt from 'bcryptjs'
 import { NextResponse } from 'next/server'
 import { ensureDatabaseSetup } from '@/lib/server/setup'
@@ -17,7 +18,20 @@ export async function POST(request: Request) {
   if (!user) return NextResponse.json({ error: 'Usuario no encontrado' }, { status: 404 })
   if (!user.is_active) return NextResponse.json({ error: 'Usuario inactivo' }, { status: 403 })
 
-  const ok = await bcrypt.compare(password, user.password_hash)
+  let ok = false
+  try {
+    const sqlCheck = await pool.query('SELECT crypt($1, $2) = $2 AS ok', [password, user.password_hash])
+    ok = Boolean(sqlCheck.rows[0]?.ok)
+  } catch {
+    ok = false
+  }
+  if (!ok) {
+    try {
+      ok = await bcrypt.compare(password, user.password_hash)
+    } catch {
+      ok = false
+    }
+  }
   if (!ok) return NextResponse.json({ error: 'Contraseña incorrecta' }, { status: 401 })
 
   const roleRes = await pool.query('SELECT * FROM roles WHERE id = $1', [user.role_id])

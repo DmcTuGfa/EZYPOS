@@ -1,7 +1,6 @@
 import { create } from 'zustand'
 import type { AuthUser } from '@/lib/types'
 import { apiFetch } from '@/lib/api/client'
-import { hydrateDatabaseCache } from '@/lib/db/local-storage'
 
 interface AuthState {
   user: AuthUser | null
@@ -27,8 +26,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     if (get().isInitialized) return
     set({ isLoading: true, error: null })
     try {
-      const bootstrap = await apiFetch<Record<string, unknown>>('/api/bootstrap')
-      hydrateDatabaseCache(bootstrap)
+      await apiFetch<Record<string, unknown>>('/api/bootstrap')
       set((state) => ({ isInitialized: true, isLoading: false, isAuthenticated: !!state.user }))
     } catch (error) {
       set({ isInitialized: true, isLoading: false, error: error instanceof Error ? error.message : 'No se pudo inicializar' })

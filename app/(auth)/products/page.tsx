@@ -100,13 +100,13 @@ export default function ProductsPage() {
         barcode: product.barcode || "",
         description: product.description || "",
         salePrice: product.salePrice.toString(),
-        costPrice: product.costPrice.toString(),
+        costPrice: (product.purchasePrice ?? 0).toString(),
         stock: getProductStock(product.id).toString(),
         minStock: product.minStock.toString(),
         categoryId: product.categoryId || "",
         unit: product.unit,
         taxRate: product.taxRate.toString(),
-        satCode: product.satCode || "",
+        satCode: product.satKey || "",
         isActive: product.isActive,
       })
     } else {
@@ -131,23 +131,23 @@ export default function ProductsPage() {
   }
 
   async function handleSaveProduct() {
-    const productData: Omit<Product, "id" | "createdAt" | "updatedAt"> = {
+    const productData = {
       name: formData.name,
       sku: formData.sku,
-      barcode: formData.barcode || undefined,
-      description: formData.description || undefined,
+      barcode: formData.barcode || "",
+      description: formData.description || "",
       salePrice: parseFloat(formData.salePrice) || 0,
-      costPrice: parseFloat(formData.costPrice) || 0,
+      purchasePrice: parseFloat(formData.costPrice) || 0,
       minStock: parseInt(formData.minStock) || 0,
-      categoryId: formData.categoryId || undefined,
-      unit: formData.unit,
-      taxRate: parseFloat(formData.taxRate) || 16,
-      satCode: formData.satCode || undefined,
+      categoryId: formData.categoryId || "",
+      unit: (formData.unit || "PZA").toUpperCase(),
+      taxRate: parseFloat(formData.taxRate) || 0,
+      satKey: formData.satCode || "",
       isActive: formData.isActive,
     }
 
     if (editingProduct) {
-      await saveProduct({ ...productData, id: editingProduct.id, createdAt: editingProduct.createdAt, updatedAt: new Date().toISOString() } as any)
+      await saveProduct({ ...editingProduct, ...productData, updatedAt: new Date().toISOString() } as any)
     } else {
       const newProduct: Product = {
         ...productData,

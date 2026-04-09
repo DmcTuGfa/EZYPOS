@@ -58,7 +58,10 @@ export const useProductsStore = create<ProductsState>((set, get) => ({
     await get().loadProducts()
     return res.product
   },
-  saveProduct: async (product) => product.id ? get().updateProduct(product.id, product) : get().createProduct(product as any),
+  saveProduct: async (product) => {
+    const exists = !!get().products.find((p) => p.id === product.id)
+    return exists ? get().updateProduct(product.id, product) : get().createProduct(product as any)
+  },
   deleteProduct: async (id) => { await apiFetch(`/api/products/${id}`, { method: 'DELETE' }); await get().loadProducts(); return true },
   createCategory: async (data) => ({ id: crypto.randomUUID(), ...data, createdAt: new Date() }),
   updateCategory: async () => undefined,
