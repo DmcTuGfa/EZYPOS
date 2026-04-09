@@ -1,5 +1,4 @@
 import { create } from 'zustand'
-import { persist } from 'zustand/middleware'
 import type { AuthUser } from '@/lib/types'
 import { apiFetch } from '@/lib/api/client'
 import { hydrateDatabaseCache } from '@/lib/db/local-storage'
@@ -17,56 +16,48 @@ interface AuthState {
   hasPermission: (permission: string) => boolean
 }
 
-export const useAuthStore = create<AuthState>()(
-  persist(
-    (set, get) => ({
-      user: null,
-      isLoading: false,
-      isInitialized: false,
-      error: null,
-      isAuthenticated: false,
+export const useAuthStore = create<AuthState>((set, get) => ({
+  user: null,
+  isLoading: false,
+  isInitialized: false,
+  error: null,
+  isAuthenticated: false,
 
-      initialize: async () => {
-        if (get().isInitialized) return
-        set({ isLoading: true, error: null })
-        try {
-          const bootstrap = await apiFetch<Record<string, unknown>>('/api/bootstrap')
-          hydrateDatabaseCache(bootstrap)
-          set((state) => ({ isInitialized: true, isLoading: false, isAuthenticated: !!state.user }))
-        } catch (error) {
-          set({ isInitialized: true, isLoading: false, error: error instanceof Error ? error.message : 'No se pudo inicializar' })
-        }
-      },
-
-      login: async (email, password) => {
-        set({ isLoading: true, error: null })
-        try {
-          const data = await apiFetch<{ user: AuthUser }>('/api/auth/login', {
-            method: 'POST',
-            body: JSON.stringify({ email, password }),
-          })
-          set({ user: data.user, isLoading: false, error: null, isAuthenticated: true })
-          return true
-        } catch (error) {
-          set({ isLoading: false, error: error instanceof Error ? error.message : 'Error de inicio de sesión', isAuthenticated: false })
-          return false
-        }
-      },
-
-      logout: () => set({ user: null, error: null, isAuthenticated: false }),
-      clearError: () => set({ error: null }),
-      hasPermission: (permission) => {
-        const user = get().user
-        if (!user) return false
-        return user.role.permissions.includes('*') || user.role.permissions.includes(permission)
-      },
-    }),
-    {
-      name: 'ventamx-auth',
-      partialize: (state) => ({ user: state.user, isAuthenticated: state.isAuthenticated }),
+  initialize: async () => {
+    if (get().isInitialized) return
+    set({ isLoading: true, error: null })
+    try {
+      const bootstrap = await apiFetch<Record<string, unknown>>('/api/bootstrap')
+      hydrateDatabaseCache(bootstrap)
+      set((state) => ({ isInitialized: true, isLoading: false, isAuthenticated: !!state.user }))
+    } catch (error) {
+      set({ isInitialized: true, isLoading: false, error: error instanceof Error ? error.message : 'No se pudo inicializar' })
     }
-  )
-)
+  },
+
+  login: async (email, password) => {
+    set({ isLoading: true, error: null })
+    try {
+      const data = await apiFetch<{ user: AuthUser }>('/api/auth/login', {
+        method: 'POST',
+        body: JSON.stringify({ email, password }),
+      })
+      set({ user: data.user, isLoading: false, error: null, isAuthenticated: true })
+      return true
+    } catch (error) {
+      set({ isLoading: false, error: error instanceof Error ? error.message : 'Error de inicio de sesión', isAuthenticated: false })
+      return false
+    }
+  },
+
+  logout: () => set({ user: null, error: null, isAuthenticated: false }),
+  clearError: () => set({ error: null }),
+  hasPermission: (permission) => {
+    const user = get().user
+    if (!user) return false
+    return user.role.permissions.includes('*') || user.role.permissions.includes(permission)
+  },
+}))
 
 export function useCurrentUser(): AuthUser | null {
   return useAuthStore((state) => state.user)

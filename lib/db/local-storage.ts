@@ -37,52 +37,36 @@ import {
 // --- STORAGE KEYS ---
 
 const STORAGE_KEYS = {
-  ROLES: 'ventamx_roles',
-  USERS: 'ventamx_users',
-  BRANCHES: 'ventamx_branches',
-  CATEGORIES: 'ventamx_categories',
-  PRODUCTS: 'ventamx_products',
-  PRODUCT_STOCK: 'ventamx_product_stock',
-  CUSTOMERS: 'ventamx_customers',
-  CASH_REGISTERS: 'ventamx_cash_registers',
-  CASH_SESSIONS: 'ventamx_cash_sessions',
-  CASH_MOVEMENTS: 'ventamx_cash_movements',
-  SALES: 'ventamx_sales',
-  SALE_ITEMS: 'ventamx_sale_items',
-  SALE_PAYMENTS: 'ventamx_sale_payments',
-  INVOICES: 'ventamx_invoices',
-  INVENTORY_MOVEMENTS: 'ventamx_inventory_movements',
-  SETTINGS: 'ventamx_settings',
-  INITIALIZED: 'ventamx_initialized',
+  ROLES: 'cache_roles',
+  USERS: 'cache_users',
+  BRANCHES: 'cache_branches',
+  CATEGORIES: 'cache_categories',
+  PRODUCTS: 'cache_products',
+  PRODUCT_STOCK: 'cache_product_stock',
+  CUSTOMERS: 'cache_customers',
+  CASH_REGISTERS: 'cache_cash_registers',
+  CASH_SESSIONS: 'cache_cash_sessions',
+  CASH_MOVEMENTS: 'cache_cash_movements',
+  SALES: 'cache_sales',
+  SALE_ITEMS: 'cache_sale_items',
+  SALE_PAYMENTS: 'cache_sale_payments',
+  INVOICES: 'cache_invoices',
+  INVENTORY_MOVEMENTS: 'cache_inventory_movements',
+  SETTINGS: 'cache_settings',
+  INITIALIZED: 'cache_initialized',
 } as const
+const memoryStore = new Map<string, unknown>()
 
 // --- HELPER FUNCTIONS ---
 
 function getFromStorage<T>(key: string, defaultValue: T): T {
-  if (typeof window === 'undefined') return defaultValue
-  try {
-    const item = localStorage.getItem(key)
-    if (!item) return defaultValue
-    return JSON.parse(item, (_, value) => {
-      // Revive dates
-      if (typeof value === 'string' && /^\d{4}-\d{2}-\d{2}T/.test(value)) {
-        return new Date(value)
-      }
-      return value
-    })
-  } catch {
-    return defaultValue
-  }
+  return (memoryStore.get(key) as T | undefined) ?? defaultValue
 }
 
 function setToStorage<T>(key: string, value: T): void {
-  if (typeof window === 'undefined') return
-  try {
-    localStorage.setItem(key, JSON.stringify(value))
-  } catch (error) {
-    console.error(`Error saving to localStorage: ${key}`, error)
-  }
+  memoryStore.set(key, value)
 }
+
 
 function generateId(): string {
   return `${Date.now()}-${Math.random().toString(36).substring(2, 9)}`
@@ -90,42 +74,13 @@ function generateId(): string {
 
 // --- INITIALIZATION ---
 
-export function initializeDatabase(): void {
-  if (typeof window === 'undefined') return
-  
-  const initialized = localStorage.getItem(STORAGE_KEYS.INITIALIZED)
-  if (initialized) return
-
-  // Load demo data
-  setToStorage(STORAGE_KEYS.ROLES, DEMO_ROLES)
-  setToStorage(STORAGE_KEYS.USERS, DEMO_USERS)
-  setToStorage(STORAGE_KEYS.BRANCHES, DEMO_BRANCHES)
-  setToStorage(STORAGE_KEYS.CATEGORIES, DEMO_CATEGORIES)
-  setToStorage(STORAGE_KEYS.PRODUCTS, DEMO_PRODUCTS)
-  setToStorage(STORAGE_KEYS.PRODUCT_STOCK, DEMO_PRODUCT_STOCK)
-  setToStorage(STORAGE_KEYS.CUSTOMERS, DEMO_CUSTOMERS)
-  setToStorage(STORAGE_KEYS.CASH_REGISTERS, DEMO_CASH_REGISTERS)
-  setToStorage(STORAGE_KEYS.CASH_SESSIONS, [])
-  setToStorage(STORAGE_KEYS.CASH_MOVEMENTS, [])
-  setToStorage(STORAGE_KEYS.SALES, [])
-  setToStorage(STORAGE_KEYS.SALE_ITEMS, [])
-  setToStorage(STORAGE_KEYS.SALE_PAYMENTS, [])
-  setToStorage(STORAGE_KEYS.INVOICES, [])
-  setToStorage(STORAGE_KEYS.INVENTORY_MOVEMENTS, [])
-  setToStorage(STORAGE_KEYS.SETTINGS, DEMO_BUSINESS_SETTINGS)
-
-  localStorage.setItem(STORAGE_KEYS.INITIALIZED, 'true')
-}
+export function initializeDatabase(): void {}
 
 export function resetDatabase(): void {
-  if (typeof window === 'undefined') return
-  Object.values(STORAGE_KEYS).forEach((key) => localStorage.removeItem(key))
-  initializeDatabase()
+  memoryStore.clear()
 }
 
-
 export function hydrateDatabaseCache(payload: Partial<Record<string, unknown>>): void {
-  if (typeof window === 'undefined') return
   const map: Record<string, string> = {
     roles: STORAGE_KEYS.ROLES,
     users: STORAGE_KEYS.USERS,
@@ -147,7 +102,6 @@ export function hydrateDatabaseCache(payload: Partial<Record<string, unknown>>):
       setToStorage(storageKey, payload[key])
     }
   }
-  localStorage.setItem(STORAGE_KEYS.INITIALIZED, 'true')
 }
 
 // --- ROLES ---
