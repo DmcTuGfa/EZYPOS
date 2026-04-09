@@ -143,7 +143,7 @@ export function PaymentPanel({ open, onOpenChange, onSaleComplete }: PaymentPane
         changeAmount: p.method === 'cash' ? Math.max(0, totalPaid - total) : 0,
       }))
 
-      const sale = createSale({
+      const sale = await createSale({
         branchId: currentBranch.id,
         cashSessionId: currentSession.id,
         userId: user.id,
