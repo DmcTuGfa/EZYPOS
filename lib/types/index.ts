@@ -116,19 +116,24 @@ export interface InventoryMovement {
 export interface Customer {
   id: string
   name: string
-  rfc: string
-  email: string
-  phone: string
-  fiscalAddress: string
-  neighborhood: string
-  city: string
-  state: string
-  postalCode: string
-  taxRegime: string
-  cfdiUse: string
-  isActive: boolean
-  createdAt: Date
-  updatedAt: Date
+  rfc?: string
+  email?: string
+  phone?: string
+  fiscalAddress?: string
+  neighborhood?: string
+  city?: string
+  state?: string
+  postalCode?: string
+  taxRegime?: string
+  cfdiUse?: string
+  address?: string
+  colony?: string
+  zipCode?: string
+  regimenFiscal?: string
+  usoCfdi?: string
+  isActive?: boolean
+  createdAt: Date | string
+  updatedAt: Date | string
 }
 
 export interface CashRegister {
