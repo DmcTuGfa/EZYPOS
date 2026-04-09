@@ -1,11 +1,12 @@
+
 import { create } from 'zustand'
-import type { Category, Product } from '@/lib/types'
+import type { Category, Product, ProductStock } from '@/lib/types'
 import { apiFetch } from '@/lib/api/client'
-import { hydrateDatabaseCache, productStockDB } from '@/lib/db/local-storage'
 
 interface ProductsState {
   products: Product[]
   categories: Category[]
+  productStock: ProductStock[]
   isLoading: boolean
   searchQuery: string
   selectedCategory: string | null
@@ -16,6 +17,7 @@ interface ProductsState {
   searchProducts: (query: string) => Product[]
   getProductsByCategory: (categoryId: string) => Product[]
   getProductWithStock: (productId: string, branchId: string) => { product: Product; stock: number } | null
+  getStockByProductAndBranch: (productId: string, branchId: string) => number
   createProduct: (data: Omit<Product, 'id' | 'createdAt' | 'updatedAt'>) => Promise<Product>
   updateProduct: (id: string, data: Partial<Product>) => Promise<Product | undefined>
   saveProduct: (product: Product) => Promise<Product | undefined>
@@ -26,54 +28,43 @@ interface ProductsState {
 }
 
 export const useProductsStore = create<ProductsState>((set, get) => ({
-  products: [], categories: [], isLoading: false, searchQuery: '', selectedCategory: null,
+  products: [], categories: [], productStock: [], isLoading: false, searchQuery: '', selectedCategory: null,
   loadProducts: async () => {
     set({ isLoading: true })
-    const data = await apiFetch<{ products: Product[]; productStock: any[] }>('/api/products')
-    hydrateDatabaseCache({ products: data.products, productStock: data.productStock })
-    set({ products: data.products, isLoading: false })
+    const data = await apiFetch<{ products: Product[]; productStock: ProductStock[] }>('/api/products')
+    set({ products: data.products, productStock: data.productStock, isLoading: false })
   },
   loadCategories: async () => {
     const data = await apiFetch<{ categories: Category[] }>('/api/categories')
-    hydrateDatabaseCache({ categories: data.categories })
     set({ categories: data.categories })
   },
   setSearchQuery: (query) => set({ searchQuery: query }),
   setSelectedCategory: (categoryId) => set({ selectedCategory: categoryId }),
-  searchProducts: (query) => get().products.filter((p) => [p.name,p.sku,p.barcode].some(v => v.toLowerCase().includes(query.toLowerCase()))),
+  searchProducts: (query) => get().products.filter((p) => [p.name,p.sku,p.barcode].some(v => (v || '').toLowerCase().includes(query.toLowerCase()))),
   getProductsByCategory: (categoryId) => get().products.filter((p) => p.categoryId === categoryId),
+  getStockByProductAndBranch: (productId, branchId) => get().productStock.find((s) => s.productId === productId && s.branchId === branchId)?.quantity || 0,
   getProductWithStock: (productId, branchId) => {
     const product = get().products.find((p) => p.id === productId)
     if (!product) return null
-    return { product, stock: productStockDB.get(productId, branchId)?.quantity || 0 }
+    return { product, stock: get().getStockByProductAndBranch(productId, branchId) }
   },
   createProduct: async (data) => {
     const res = await apiFetch<{ product: Product }>('/api/products', { method: 'POST', body: JSON.stringify(data) })
-    const products = [...get().products, res.product]
-    hydrateDatabaseCache({ products })
-    set({ products })
+    await get().loadProducts()
     return res.product
   },
   updateProduct: async (id, data) => {
     const res = await apiFetch<{ product: Product }>(`/api/products/${id}`, { method: 'PATCH', body: JSON.stringify(data) })
-    const products = get().products.map((p) => p.id === id ? res.product : p)
-    hydrateDatabaseCache({ products })
-    set({ products })
+    await get().loadProducts()
     return res.product
   },
   saveProduct: async (product) => product.id ? get().updateProduct(product.id, product) : get().createProduct(product as any),
-  deleteProduct: async (id) => {
-    await apiFetch(`/api/products/${id}`, { method: 'DELETE' })
-    const products = get().products.filter((p) => p.id !== id)
-    hydrateDatabaseCache({ products })
-    set({ products })
-    return true
-  },
+  deleteProduct: async (id) => { await apiFetch(`/api/products/${id}`, { method: 'DELETE' }); await get().loadProducts(); return true },
   createCategory: async (data) => ({ id: crypto.randomUUID(), ...data, createdAt: new Date() }),
   updateCategory: async () => undefined,
   getFilteredProducts: () => {
     const { products, searchQuery, selectedCategory } = get()
-    return products.filter((p) => (!searchQuery || [p.name,p.sku,p.barcode].some(v => v.toLowerCase().includes(searchQuery.toLowerCase()))) && (!selectedCategory || p.categoryId === selectedCategory))
+    return products.filter((p) => (!searchQuery || [p.name,p.sku,p.barcode].some(v => (v || '').toLowerCase().includes(searchQuery.toLowerCase()))) && (!selectedCategory || p.categoryId === selectedCategory))
   },
 }))
 

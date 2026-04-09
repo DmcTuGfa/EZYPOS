@@ -1,49 +1,6 @@
+
 import { create } from 'zustand'
 import type { Role, User } from '@/lib/types'
-import { rolesDB, usersDB } from '@/lib/db/local-storage'
-
-interface UsersState {
-  users: User[]
-  roles: Role[]
-  isLoading: boolean
-  loadUsers: () => void
-  loadRoles: () => void
-  createUser: (data: Omit<User, 'id' | 'createdAt' | 'updatedAt'>) => User
-  updateUser: (id: string, data: Partial<User>) => User | undefined
-  toggleUserStatus: (id: string) => User | undefined
-}
-
-export const useUsersStore = create<UsersState>((set) => ({
-  users: [],
-  roles: [],
-  isLoading: false,
-
-  loadUsers: () => {
-    set({ isLoading: true })
-    set({ users: usersDB.getAll(), isLoading: false })
-  },
-
-  loadRoles: () => {
-    set({ roles: rolesDB.getAll() })
-  },
-
-  createUser: (data) => {
-    const user = usersDB.create(data)
-    set({ users: usersDB.getAll() })
-    return user
-  },
-
-  updateUser: (id, data) => {
-    const updated = usersDB.update(id, data)
-    set({ users: usersDB.getAll() })
-    return updated
-  },
-
-  toggleUserStatus: (id) => {
-    const current = usersDB.getById(id)
-    if (!current) return undefined
-    const updated = usersDB.update(id, { isActive: !current.isActive })
-    set({ users: usersDB.getAll() })
-    return updated
-  },
-}))
+import { apiFetch } from '@/lib/api/client'
+interface UsersState { users: User[]; roles: Role[]; isLoading: boolean; loadUsers: () => Promise<void>; loadRoles: () => Promise<void>; createUser: (data: Omit<User, 'id' | 'createdAt' | 'updatedAt'>) => Promise<User>; updateUser: (id: string, data: Partial<User>) => Promise<User | undefined>; toggleUserStatus: (id: string) => Promise<User | undefined> }
+export const useUsersStore = create<UsersState>((set, get) => ({ users: [], roles: [], isLoading: false, loadUsers: async () => { set({ isLoading: true }); const data = await apiFetch<{ users: User[] }>('/api/users'); set({ users: data.users, isLoading: false }) }, loadRoles: async () => { const data = await apiFetch<{ roles: Role[] }>('/api/bootstrap'); set({ roles: data.roles }) }, createUser: async (data) => { const res = await apiFetch<{ user: User }>('/api/users', { method: 'POST', body: JSON.stringify(data) }); await get().loadUsers(); return res.user }, updateUser: async (id, data) => { const res = await apiFetch<{ user: User }>(`/api/users/${id}`, { method: 'PATCH', body: JSON.stringify(data) }); await get().loadUsers(); return res.user }, toggleUserStatus: async (id) => { const current = get().users.find((u) => u.id === id); if (!current) return undefined; const res = await apiFetch<{ user: User }>(`/api/users/${id}`, { method: 'PATCH', body: JSON.stringify({ isActive: !current.isActive }) }); await get().loadUsers(); return res.user } }))

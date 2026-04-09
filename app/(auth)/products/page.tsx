@@ -36,10 +36,10 @@ import { useProductsStore } from "@/lib/stores/products-store"
 import { useBranchStore } from "@/lib/stores/branch-store"
 import { formatCurrency } from "@/lib/utils/format"
 import type { Product, Category } from "@/lib/types"
-import { db } from "@/lib/db/local-storage"
+import { apiFetch } from "@/lib/api/client"
 
 export default function ProductsPage() {
-  const { products, categories, loadProducts, loadCategories, saveProduct, deleteProduct } = useProductsStore()
+  const { products, categories, productStock, loadProducts, loadCategories, saveProduct, deleteProduct } = useProductsStore()
   const { currentBranch } = useBranchStore()
   const [searchTerm, setSearchTerm] = useState("")
   const [selectedCategory, setSelectedCategory] = useState<string>("all")
@@ -65,7 +65,7 @@ export default function ProductsPage() {
   })
 
   useEffect(() => {
-    loadProducts()
+    await loadProducts()
     loadCategories()
   }, [loadProducts, loadCategories])
 
@@ -87,7 +87,7 @@ export default function ProductsPage() {
 
   function getProductStock(productId: string): number {
     if (!currentBranch) return 0
-    const stockRecord = db.productStock.getByProductAndBranch(productId, currentBranch.id)
+    const stockRecord = productStock.find((s) => s.productId === productId && s.branchId === currentBranch.id)
     return stockRecord?.quantity || 0
   }
 
@@ -130,7 +130,7 @@ export default function ProductsPage() {
     setIsDialogOpen(true)
   }
 
-  function handleSaveProduct() {
+  async function handleSaveProduct() {
     const productData: Omit<Product, "id" | "createdAt" | "updatedAt"> = {
       name: formData.name,
       sku: formData.sku,
@@ -147,7 +147,7 @@ export default function ProductsPage() {
     }
 
     if (editingProduct) {
-      saveProduct({ ...productData, id: editingProduct.id, createdAt: editingProduct.createdAt, updatedAt: new Date().toISOString() })
+      await saveProduct({ ...productData, id: editingProduct.id, createdAt: editingProduct.createdAt, updatedAt: new Date().toISOString() } as any)
     } else {
       const newProduct: Product = {
         ...productData,
@@ -155,27 +155,21 @@ export default function ProductsPage() {
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString(),
       }
-      saveProduct(newProduct)
+      await saveProduct(newProduct as any)
       
       // Create initial stock for current branch
       if (currentBranch && formData.stock) {
-        db.productStock.create({
-          id: crypto.randomUUID(),
-          productId: newProduct.id,
-          branchId: currentBranch.id,
-          quantity: parseInt(formData.stock) || 0,
-          updatedAt: new Date().toISOString(),
-        })
+        await apiFetch("/api/inventory-movements", { method: "POST", body: JSON.stringify({ productId: newProduct.id, branchId: currentBranch.id, type: "adjustment", quantity: parseInt(formData.stock) || 0, reason: "Stock inicial", userId: "system" }) })
       }
     }
 
     setIsDialogOpen(false)
-    loadProducts()
+    await loadProducts()
   }
 
-  function handleDeleteProduct() {
+  async function handleDeleteProduct() {
     if (productToDelete) {
-      deleteProduct(productToDelete.id)
+      await deleteProduct(productToDelete.id)
       setIsDeleteDialogOpen(false)
       setProductToDelete(null)
     }
