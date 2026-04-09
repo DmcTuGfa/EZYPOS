@@ -149,22 +149,35 @@ export default function ProductsPage() {
     if (editingProduct) {
       await saveProduct({ ...editingProduct, ...productData, updatedAt: new Date().toISOString() } as any)
     } else {
-      const newProduct: Product = {
-        ...productData,
-        id: crypto.randomUUID(),
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
-      }
-      await saveProduct(newProduct as any)
-      
-      // Create initial stock for current branch
-      if (currentBranch && formData.stock) {
-        await apiFetch("/api/inventory-movements", { method: "POST", body: JSON.stringify({ productId: newProduct.id, branchId: currentBranch.id, type: "adjustment", quantity: parseInt(formData.stock) || 0, reason: "Stock inicial", userId: "system" }) })
-      }
+      await apiFetch("/api/products", {
+        method: "POST",
+        body: JSON.stringify({
+          ...productData,
+          id: crypto.randomUUID(),
+          branchId: currentBranch?.id,
+          initialStock: parseInt(formData.stock) || 0,
+        }),
+      })
     }
 
-    setIsDialogOpen(false)
     await loadProducts()
+    setEditingProduct(null)
+    setFormData({
+      name: "",
+      sku: "",
+      barcode: "",
+      description: "",
+      salePrice: "",
+      costPrice: "",
+      stock: "",
+      minStock: "",
+      categoryId: "",
+      unit: "pza",
+      taxRate: "16",
+      satCode: "",
+      isActive: true,
+    })
+    setIsDialogOpen(false)
   }
 
   async function handleDeleteProduct() {
