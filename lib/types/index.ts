@@ -102,15 +102,16 @@ export interface InventoryMovement {
   product?: Product
   branchId: string
   branch?: Branch
-  fromBranchId: string | null
-  toBranchId: string | null
-  type: MovementType
+  fromBranchId?: string | null
+  toBranchId?: string | null
+  targetBranchId?: string | null
+  type: MovementType | "entrada" | "salida" | "ajuste" | "traspaso"
   quantity: number
   reason: string
-  referenceId: string | null
+  referenceId?: string | null
   userId: string
   user?: User
-  createdAt: Date
+  createdAt: Date | string
 }
 
 export interface Customer {
