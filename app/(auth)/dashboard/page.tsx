@@ -98,13 +98,12 @@ export default function DashboardPage() {
 
   // Sales by payment method
   const paymentMethodData = todaySales.reduce((acc, sale) => {
-    const method = sale.paymentMethod ?? 'cash'
-    const label = getPaymentMethodLabel(method)
-    const existing = acc.find(a => a.name === label)
+    const method = sale.paymentMethod
+    const existing = acc.find(a => a.name === method)
     if (existing) {
       existing.value += sale.total
     } else {
-      acc.push({ name: label, value: sale.total })
+      acc.push({ name: getPaymentMethodLabel(method), value: sale.total })
     }
     return acc
   }, [] as Array<{ name: string; value: number }>)

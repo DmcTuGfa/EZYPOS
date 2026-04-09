@@ -122,8 +122,8 @@ export default function InventoryPage() {
       branchId: currentBranch.id,
       type: movementType,
       quantity: movementType === "salida" ? -quantity : quantity,
-      reason: movementForm.reason || undefined,
-      targetBranchId: movementType === "traspaso" ? movementForm.targetBranchId : undefined,
+      reason: movementForm.reason || "",
+      targetBranchId: movementType === "traspaso" ? movementForm.targetBranchId || null : null,
       userId: user.id,
       createdAt: new Date().toISOString(),
     }

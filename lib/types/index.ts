@@ -102,39 +102,33 @@ export interface InventoryMovement {
   product?: Product
   branchId: string
   branch?: Branch
-  fromBranchId?: string | null
-  toBranchId?: string | null
-  targetBranchId?: string | null
-  type: MovementType | "entrada" | "salida" | "ajuste" | "traspaso"
+  fromBranchId: string | null
+  toBranchId: string | null
+  type: MovementType
   quantity: number
   reason: string
-  referenceId?: string | null
+  referenceId: string | null
   userId: string
   user?: User
-  createdAt: Date | string
+  createdAt: Date
 }
 
 export interface Customer {
   id: string
   name: string
-  rfc?: string
-  email?: string
-  phone?: string
-  fiscalAddress?: string
-  neighborhood?: string
-  city?: string
-  state?: string
-  postalCode?: string
-  taxRegime?: string
-  cfdiUse?: string
-  address?: string
-  colony?: string
-  zipCode?: string
-  regimenFiscal?: string
-  usoCfdi?: string
-  isActive?: boolean
-  createdAt: Date | string
-  updatedAt: Date | string
+  rfc: string
+  email: string
+  phone: string
+  fiscalAddress: string
+  neighborhood: string
+  city: string
+  state: string
+  postalCode: string
+  taxRegime: string
+  cfdiUse: string
+  isActive: boolean
+  createdAt: Date
+  updatedAt: Date
 }
 
 export interface CashRegister {
