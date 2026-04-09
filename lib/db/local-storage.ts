@@ -123,6 +123,33 @@ export function resetDatabase(): void {
   initializeDatabase()
 }
 
+
+export function hydrateDatabaseCache(payload: Partial<Record<string, unknown>>): void {
+  if (typeof window === 'undefined') return
+  const map: Record<string, string> = {
+    roles: STORAGE_KEYS.ROLES,
+    users: STORAGE_KEYS.USERS,
+    branches: STORAGE_KEYS.BRANCHES,
+    categories: STORAGE_KEYS.CATEGORIES,
+    products: STORAGE_KEYS.PRODUCTS,
+    productStock: STORAGE_KEYS.PRODUCT_STOCK,
+    customers: STORAGE_KEYS.CUSTOMERS,
+    cashRegisters: STORAGE_KEYS.CASH_REGISTERS,
+    cashSessions: STORAGE_KEYS.CASH_SESSIONS,
+    cashMovements: STORAGE_KEYS.CASH_MOVEMENTS,
+    sales: STORAGE_KEYS.SALES,
+    saleItems: STORAGE_KEYS.SALE_ITEMS,
+    salePayments: STORAGE_KEYS.SALE_PAYMENTS,
+    inventoryMovements: STORAGE_KEYS.INVENTORY_MOVEMENTS,
+  }
+  for (const [key, storageKey] of Object.entries(map)) {
+    if (payload[key] !== undefined) {
+      setToStorage(storageKey, payload[key])
+    }
+  }
+  localStorage.setItem(STORAGE_KEYS.INITIALIZED, 'true')
+}
+
 // --- ROLES ---
 
 export const rolesDB = {

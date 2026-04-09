@@ -193,6 +193,7 @@ export interface Sale {
   cancelledAt: Date | null
   cancelledBy: string | null
   cancelReason: string
+  paymentMethod?: string
   createdAt: Date
   items?: SaleItem[]
   payments?: SalePayment[]

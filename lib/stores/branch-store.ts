@@ -1,24 +1,19 @@
-// ===========================================
-// STORE DE SUCURSALES
-// ===========================================
-
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
 import type { Branch } from '@/lib/types'
-import { branchesDB } from '@/lib/db/local-storage'
+import { apiFetch } from '@/lib/api/client'
+import { hydrateDatabaseCache } from '@/lib/db/local-storage'
 
 interface BranchState {
   currentBranch: Branch | null
   branches: Branch[]
   isLoading: boolean
-  
-  // Actions
-  loadBranches: () => void
+  loadBranches: () => Promise<void>
   setCurrentBranch: (branch: Branch) => void
   setCurrentBranchById: (branchId: string) => void
-  createBranch: (data: Omit<Branch, 'id' | 'createdAt' | 'updatedAt'>) => Branch
-  updateBranch: (id: string, data: Partial<Branch>) => Branch | undefined
-  deleteBranch: (id: string) => boolean
+  createBranch: (data: Omit<Branch, 'id' | 'createdAt' | 'updatedAt'>) => Promise<Branch>
+  updateBranch: (id: string, data: Partial<Branch>) => Promise<Branch | undefined>
+  deleteBranch: (id: string) => Promise<boolean>
 }
 
 export const useBranchStore = create<BranchState>()(
@@ -27,74 +22,42 @@ export const useBranchStore = create<BranchState>()(
       currentBranch: null,
       branches: [],
       isLoading: false,
-
-      loadBranches: () => {
+      loadBranches: async () => {
         set({ isLoading: true })
-        const branches = branchesDB.getActive()
-        set({ branches, isLoading: false })
-        
-        // If no current branch is set, set the first one
-        const { currentBranch } = get()
-        if (!currentBranch && branches.length > 0) {
-          set({ currentBranch: branches[0] })
-        }
+        const data = await apiFetch<{ branches: Branch[] }>('/api/branches')
+        hydrateDatabaseCache({ branches: data.branches })
+        set({ branches: data.branches, isLoading: false })
+        if (!get().currentBranch && data.branches.length > 0) set({ currentBranch: data.branches[0] })
       },
-
-      setCurrentBranch: (branch: Branch) => {
-        set({ currentBranch: branch })
+      setCurrentBranch: (branch) => set({ currentBranch: branch }),
+      setCurrentBranchById: (branchId) => {
+        const branch = get().branches.find((b) => b.id === branchId)
+        if (branch) set({ currentBranch: branch })
       },
-
-      setCurrentBranchById: (branchId: string) => {
-        const branch = branchesDB.getById(branchId)
-        if (branch) {
-          set({ currentBranch: branch })
-        }
-      },
-
-      createBranch: (data) => {
-        const newBranch = branchesDB.create(data)
-        const branches = branchesDB.getActive()
+      createBranch: async (data) => {
+        const res = await apiFetch<{ branch: Branch }>('/api/branches', { method: 'POST', body: JSON.stringify(data) })
+        const branches = [...get().branches, res.branch]
+        hydrateDatabaseCache({ branches })
         set({ branches })
-        return newBranch
+        return res.branch
       },
-
-      updateBranch: (id, data) => {
-        const updated = branchesDB.update(id, data)
-        if (updated) {
-          const branches = branchesDB.getActive()
-          set({ branches })
-          
-          // Update current branch if it was the one updated
-          const { currentBranch } = get()
-          if (currentBranch?.id === id) {
-            set({ currentBranch: updated })
-          }
-        }
-        return updated
+      updateBranch: async (id, data) => {
+        const res = await apiFetch<{ branch: Branch }>(`/api/branches/${id}`, { method: 'PATCH', body: JSON.stringify(data) })
+        const branches = get().branches.map((b) => (b.id === id ? res.branch : b))
+        hydrateDatabaseCache({ branches })
+        set({ branches, currentBranch: get().currentBranch?.id === id ? res.branch : get().currentBranch })
+        return res.branch
       },
-
-      deleteBranch: (id) => {
-        const deleted = branchesDB.delete(id)
-        if (deleted) {
-          const branches = branchesDB.getActive()
-          set({ branches })
-          
-          // Clear current branch if it was the one deleted
-          const { currentBranch } = get()
-          if (currentBranch?.id === id) {
-            set({ currentBranch: branches[0] || null })
-          }
-        }
-        return deleted
+      deleteBranch: async (id) => {
+        await apiFetch(`/api/branches/${id}`, { method: 'DELETE' })
+        const branches = get().branches.filter((b) => b.id !== id)
+        hydrateDatabaseCache({ branches })
+        set({ branches, currentBranch: get().currentBranch?.id === id ? branches[0] || null : get().currentBranch })
+        return true
       },
     }),
-    {
-      name: 'ventamx-branch',
-      partialize: (state) => ({ currentBranch: state.currentBranch }),
-    }
+    { name: 'ventamx-branch', partialize: (state) => ({ currentBranch: state.currentBranch }) }
   )
 )
 
-export function useCurrentBranch(): Branch | null {
-  return useBranchStore((state) => state.currentBranch)
-}
+export function useCurrentBranch(): Branch | null { return useBranchStore((state) => state.currentBranch) }

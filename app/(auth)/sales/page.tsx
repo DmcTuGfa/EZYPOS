@@ -100,9 +100,9 @@ export default function SalesPage() {
     setIsDetailDialogOpen(true)
   }
 
-  function handleCancelSale() {
+  async function handleCancelSale() {
     if (selectedSale && cancelReason) {
-      cancelSale(selectedSale.id, selectedSale.userId, cancelReason)
+      await cancelSale(selectedSale.id, selectedSale.userId, cancelReason)
       setIsCancelDialogOpen(false)
       setIsDetailDialogOpen(false)
       setCancelReason("")
