@@ -45,7 +45,7 @@ import {
   ChevronUp,
   Wallet,
   CircleDot,
-} from 'lucide-react'
+, Calculator} from 'lucide-react'
 
 const mainNavItems = [
   {

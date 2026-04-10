@@ -23,7 +23,7 @@ import { usePathname } from 'next/navigation'
 import { useAuthStore } from '@/lib/stores/auth-store'
 import { useBranchStore } from '@/lib/stores/branch-store'
 import { useCashStore } from '@/lib/stores/cash-store'
-import { Building2 } from 'lucide-react'
+import { Building2 , Calculator} from 'lucide-react'
 
 const routeTitles: Record<string, { title: string; parent?: { title: string; href: string } }> = {
   '/pos': { title: 'Punto de Venta' },
