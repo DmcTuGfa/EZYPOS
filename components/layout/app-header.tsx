@@ -24,6 +24,7 @@ import { useAuthStore } from '@/lib/stores/auth-store'
 import { useBranchStore } from '@/lib/stores/branch-store'
 import { useCashStore } from '@/lib/stores/cash-store'
 import { Building2 , Calculator} from 'lucide-react'
+import { ModeToggle } from "@/components/mode-toggle"
 
 const routeTitles: Record<string, { title: string; parent?: { title: string; href: string } }> = {
   '/pos': { title: 'Punto de Venta' },
@@ -144,6 +145,7 @@ export function AppHeader() {
           )
         )}
       </div>
-    </header>
+      <div className="ml-auto flex items-center gap-2"><ModeToggle /></div>
+</header>
   )
 }
