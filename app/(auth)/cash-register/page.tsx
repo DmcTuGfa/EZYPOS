@@ -1,7 +1,6 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { useRouter } from 'next/navigation'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -36,12 +35,12 @@ import { ScrollArea } from '@/components/ui/scroll-area'
 import { useCashStore } from '@/lib/stores/cash-store'
 import { useBranchStore } from '@/lib/stores/branch-store'
 import { useAuthStore } from '@/lib/stores/auth-store'
-import { salesDB, cashSessionsDB, cashMovementsDB, cashRegistersDB } from '@/lib/db/local-storage'
+import { apiFetch } from '@/lib/api/client'
+import type { CashSession } from '@/lib/types'
 import { formatCurrency, formatDateTime, formatPaymentMethod } from '@/lib/utils/format'
 import { toast } from 'sonner'
 import {
   Wallet,
-  DollarSign,
   TrendingUp,
   TrendingDown,
   Clock,
@@ -57,16 +56,25 @@ import {
   AlertCircle,
 } from 'lucide-react'
 
+interface SessionSummary {
+  totalSales: number
+  salesCount: number
+  byPaymentMethod: Record<'cash' | 'card' | 'transfer' | 'voucher', number>
+  withdrawals: number
+  deposits: number
+  returns: number
+  expectedCash: number
+}
+
 export default function CashRegisterPage() {
-  const router = useRouter()
   const { user } = useAuthStore()
   const { currentBranch } = useBranchStore()
-  const { 
-    currentSession, 
-    registers, 
-    loadRegisters, 
-    loadCurrentSession, 
-    openSession, 
+  const {
+    currentSession,
+    registers,
+    loadRegisters,
+    loadCurrentSession,
+    openSession,
     closeSession,
     getSessionSummary,
     addMovement,
@@ -84,28 +92,67 @@ export default function CashRegisterPage() {
   const [movementType, setMovementType] = useState<'deposit' | 'withdrawal'>('deposit')
   const [movementAmount, setMovementAmount] = useState('')
   const [movementDescription, setMovementDescription] = useState('')
-  const [sessionHistory, setSessionHistory] = useState<ReturnType<typeof cashSessionsDB.getByBranch>>([])
-
-  const summary = currentSession ? getSessionSummary() : null
-
-  useEffect(() => {
-    if (user) {
-      loadCurrentSession(user.id)
-    }
-    if (currentBranch) {
-      loadRegisters(currentBranch.id)
-    }
-  }, [user, currentBranch, loadCurrentSession, loadRegisters])
+  const [sessionHistory, setSessionHistory] = useState<CashSession[]>([])
+  const [summary, setSummary] = useState<SessionSummary | null>(null)
 
   useEffect(() => {
     if (currentBranch) {
-      const history = cashSessionsDB.getByBranch(currentBranch.id)
-        .filter((s) => s.status === 'closed')
-        .sort((a, b) => new Date(b.closedAt || 0).getTime() - new Date(a.closedAt || 0).getTime())
-        .slice(0, 20)
-      setSessionHistory(history)
+      void loadRegisters(currentBranch.id)
     }
-  }, [currentBranch])
+  }, [currentBranch, loadRegisters])
+
+  useEffect(() => {
+    if (user || currentBranch) {
+      void loadCurrentSession(user?.id, currentBranch?.id)
+    }
+  }, [user, currentBranch, loadCurrentSession])
+
+  useEffect(() => {
+    const loadHistory = async () => {
+      if (!currentBranch) {
+        setSessionHistory([])
+        return
+      }
+
+      try {
+        const data = await apiFetch<{ sessions: CashSession[] }>(
+          `/api/cash/sessions?branchId=${currentBranch.id}`
+        )
+
+        const history = (data.sessions || [])
+          .filter((session) => session.status === 'closed')
+          .sort(
+            (a, b) =>
+              new Date(b.closedAt || 0).getTime() - new Date(a.closedAt || 0).getTime()
+          )
+          .slice(0, 20)
+
+        setSessionHistory(history)
+      } catch {
+        setSessionHistory([])
+      }
+    }
+
+    void loadHistory()
+  }, [currentBranch, currentSession])
+
+  useEffect(() => {
+    const loadSummary = async () => {
+      if (!currentSession) {
+        setSummary(null)
+        return
+      }
+
+      try {
+        const data = await getSessionSummary()
+        setSummary(data as SessionSummary | null)
+      } catch {
+        setSummary(null)
+      }
+    }
+
+    void loadSummary()
+  }, [currentSession, getSessionSummary])
 
   const handleOpenSession = async () => {
     if (!user || !currentBranch || !selectedRegister) {
@@ -114,21 +161,21 @@ export default function CashRegisterPage() {
     }
 
     const amount = parseFloat(openingAmount) || 0
-
     const session = await openSession(selectedRegister, user.id, currentBranch.id, amount)
-    
+
     if (session) {
       toast.success('Caja abierta exitosamente')
       setOpenDialogOpen(false)
       setOpeningAmount('')
       setSelectedRegister('')
+      await loadCurrentSession(user.id, currentBranch.id)
     } else {
       toast.error('No se pudo abrir la caja. Verifica que no tengas otra caja abierta.')
     }
   }
 
   const handleCloseSession = async () => {
-    if (!currentSession) return
+    if (!currentSession || !user || !currentBranch) return
 
     const amount = parseFloat(closingAmount) || 0
     const closed = await closeSession(amount, closingNotes)
@@ -138,15 +185,7 @@ export default function CashRegisterPage() {
       setCloseDialogOpen(false)
       setClosingAmount('')
       setClosingNotes('')
-      
-      // Reload history
-      if (currentBranch) {
-        const history = cashSessionsDB.getByBranch(currentBranch.id)
-          .filter((s) => s.status === 'closed')
-          .sort((a, b) => new Date(b.closedAt || 0).getTime() - new Date(a.closedAt || 0).getTime())
-          .slice(0, 20)
-        setSessionHistory(history)
-      }
+      await loadCurrentSession(user.id, currentBranch.id)
     } else {
       toast.error('Error al cerrar la caja')
     }
@@ -156,7 +195,7 @@ export default function CashRegisterPage() {
     if (!user || !currentSession) return
 
     const amount = parseFloat(movementAmount)
-    if (isNaN(amount) || amount <= 0) {
+    if (Number.isNaN(amount) || amount <= 0) {
       toast.error('Ingresa un monto válido')
       return
     }
@@ -173,13 +212,15 @@ export default function CashRegisterPage() {
       setMovementDialogOpen(false)
       setMovementAmount('')
       setMovementDescription('')
+      const data = await getSessionSummary()
+      setSummary(data as SessionSummary | null)
     } else {
       toast.error('Error al registrar el movimiento')
     }
   }
 
   const getRegisterName = (registerId: string) => {
-    const register = cashRegistersDB.getById(registerId)
+    const register = registers.find((item) => item.id === registerId)
     return register?.name || 'Caja'
   }
 
@@ -213,7 +254,6 @@ export default function CashRegisterPage() {
 
       {currentSession ? (
         <>
-          {/* Session Status Card */}
           <Card className="border-green-200 bg-green-50/50 dark:border-green-900 dark:bg-green-950/20">
             <CardHeader className="pb-3">
               <div className="flex items-center justify-between">
@@ -239,7 +279,6 @@ export default function CashRegisterPage() {
             </CardContent>
           </Card>
 
-          {/* Summary Cards */}
           {summary && (
             <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
               <Card>
@@ -263,7 +302,7 @@ export default function CashRegisterPage() {
                 <CardContent>
                   <div className="text-2xl font-bold">{formatCurrency(summary.expectedCash)}</div>
                   <p className="text-xs text-muted-foreground">
-                    En caja
+                    Apertura + ventas en efectivo + depósitos - retiros
                   </p>
                 </CardContent>
               </Card>
@@ -277,9 +316,7 @@ export default function CashRegisterPage() {
                   <div className="text-2xl font-bold text-green-600">
                     {formatCurrency(summary.deposits)}
                   </div>
-                  <p className="text-xs text-muted-foreground">
-                    Ingresos extra
-                  </p>
+                  <p className="text-xs text-muted-foreground">Ingresos manuales a caja</p>
                 </CardContent>
               </Card>
 
@@ -292,92 +329,96 @@ export default function CashRegisterPage() {
                   <div className="text-2xl font-bold text-red-600">
                     {formatCurrency(summary.withdrawals)}
                   </div>
-                  <p className="text-xs text-muted-foreground">
-                    Salidas de efectivo
-                  </p>
+                  <p className="text-xs text-muted-foreground">Salidas manuales de caja</p>
                 </CardContent>
               </Card>
             </div>
           )}
 
-          {/* Payment Methods Breakdown */}
-          {summary && (
+          <div className="grid gap-6 lg:grid-cols-2">
             <Card>
               <CardHeader>
-                <CardTitle className="text-lg">Desglose por Método de Pago</CardTitle>
+                <CardTitle>Pagos por método</CardTitle>
+                <CardDescription>Resumen del turno actual</CardDescription>
               </CardHeader>
-              <CardContent>
-                <div className="grid gap-4 md:grid-cols-4">
-                  <div className="flex items-center gap-3 p-3 border rounded-lg">
-                    <Banknote className="h-8 w-8 text-green-600" />
-                    <div>
-                      <p className="text-sm text-muted-foreground">Efectivo</p>
-                      <p className="text-lg font-semibold">{formatCurrency(summary.byPaymentMethod.cash)}</p>
+              <CardContent className="space-y-4">
+                {summary ? (
+                  <>
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <Banknote className="h-4 w-4" />
+                        <span>Efectivo</span>
+                      </div>
+                      <span className="font-medium">{formatCurrency(summary.byPaymentMethod.cash)}</span>
                     </div>
-                  </div>
-                  <div className="flex items-center gap-3 p-3 border rounded-lg">
-                    <CreditCard className="h-8 w-8 text-blue-600" />
-                    <div>
-                      <p className="text-sm text-muted-foreground">Tarjeta</p>
-                      <p className="text-lg font-semibold">{formatCurrency(summary.byPaymentMethod.card)}</p>
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <CreditCard className="h-4 w-4" />
+                        <span>Tarjeta</span>
+                      </div>
+                      <span className="font-medium">{formatCurrency(summary.byPaymentMethod.card)}</span>
                     </div>
-                  </div>
-                  <div className="flex items-center gap-3 p-3 border rounded-lg">
-                    <ArrowRightLeft className="h-8 w-8 text-purple-600" />
-                    <div>
-                      <p className="text-sm text-muted-foreground">Transferencia</p>
-                      <p className="text-lg font-semibold">{formatCurrency(summary.byPaymentMethod.transfer)}</p>
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <ArrowRightLeft className="h-4 w-4" />
+                        <span>Transferencia</span>
+                      </div>
+                      <span className="font-medium">{formatCurrency(summary.byPaymentMethod.transfer)}</span>
                     </div>
-                  </div>
-                  <div className="flex items-center gap-3 p-3 border rounded-lg">
-                    <Ticket className="h-8 w-8 text-orange-600" />
-                    <div>
-                      <p className="text-sm text-muted-foreground">Vales</p>
-                      <p className="text-lg font-semibold">{formatCurrency(summary.byPaymentMethod.voucher)}</p>
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <Ticket className="h-4 w-4" />
+                        <span>Vale</span>
+                      </div>
+                      <span className="font-medium">{formatCurrency(summary.byPaymentMethod.voucher)}</span>
                     </div>
-                  </div>
-                </div>
+                  </>
+                ) : (
+                  <p className="text-sm text-muted-foreground">Sin información disponible.</p>
+                )}
               </CardContent>
             </Card>
-          )}
 
-          {/* Quick Actions */}
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-lg">Acciones Rápidas</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="flex flex-wrap gap-2">
-                <Button variant="outline" onClick={() => { setMovementType('deposit'); setMovementDialogOpen(true) }}>
+            <Card>
+              <CardHeader>
+                <CardTitle>Acciones rápidas</CardTitle>
+                <CardDescription>Registra movimientos manuales en caja</CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-3">
+                <Button className="w-full" variant="outline" onClick={() => {
+                  setMovementType('deposit')
+                  setMovementDialogOpen(true)
+                }}>
                   <Plus className="h-4 w-4 mr-2" />
-                  Registrar Depósito
+                  Registrar depósito
                 </Button>
-                <Button variant="outline" onClick={() => { setMovementType('withdrawal'); setMovementDialogOpen(true) }}>
+                <Button className="w-full" variant="outline" onClick={() => {
+                  setMovementType('withdrawal')
+                  setMovementDialogOpen(true)
+                }}>
                   <Minus className="h-4 w-4 mr-2" />
-                  Registrar Retiro
+                  Registrar retiro
                 </Button>
-                <Button variant="outline" onClick={() => router.push('/pos')}>
-                  <DollarSign className="h-4 w-4 mr-2" />
-                  Ir a Punto de Venta
+                <Button className="w-full" variant="destructive" onClick={() => setCloseDialogOpen(true)}>
+                  <XCircle className="h-4 w-4 mr-2" />
+                  Cerrar caja
                 </Button>
-              </div>
-            </CardContent>
-          </Card>
+              </CardContent>
+            </Card>
+          </div>
         </>
       ) : (
-        /* No Open Session */
-        <Card className="max-w-md mx-auto">
-          <CardHeader className="text-center">
-            <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-muted">
-              <Wallet className="h-6 w-6 text-muted-foreground" />
-            </div>
-            <CardTitle>No hay caja abierta</CardTitle>
-            <CardDescription>
-              Abre una caja para comenzar a realizar ventas y registrar movimientos de efectivo.
-            </CardDescription>
+        <Card>
+          <CardHeader>
+            <CardTitle>Sin caja abierta</CardTitle>
+            <CardDescription>Abre una caja para iniciar tu turno</CardDescription>
           </CardHeader>
-          <CardContent className="text-center">
-            <Button onClick={() => setOpenDialogOpen(true)} size="lg">
+          <CardContent className="flex flex-col items-center justify-center py-12 text-center">
+            <AlertCircle className="h-12 w-12 text-muted-foreground mb-4" />
+            <p className="text-muted-foreground mb-4">
+              No tienes una caja abierta en esta sucursal.
+            </p>
+            <Button onClick={() => setOpenDialogOpen(true)}>
               <Wallet className="h-4 w-4 mr-2" />
               Abrir Caja
             </Button>
@@ -385,16 +426,14 @@ export default function CashRegisterPage() {
         </Card>
       )}
 
-      {/* Open Session Dialog */}
       <Dialog open={openDialogOpen} onOpenChange={setOpenDialogOpen}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Abrir Caja</DialogTitle>
-            <DialogDescription>
-              Selecciona una caja e ingresa el monto inicial de efectivo.
-            </DialogDescription>
+            <DialogTitle>Abrir caja</DialogTitle>
+            <DialogDescription>Selecciona la caja y define el monto inicial.</DialogDescription>
           </DialogHeader>
-          <div className="space-y-4 py-4">
+
+          <div className="space-y-4">
             <div className="space-y-2">
               <Label>Caja</Label>
               <Select value={selectedRegister} onValueChange={setSelectedRegister}>
@@ -410,206 +449,179 @@ export default function CashRegisterPage() {
                 </SelectContent>
               </Select>
             </div>
+
             <div className="space-y-2">
-              <Label>Monto inicial en caja</Label>
+              <Label>Monto inicial</Label>
               <Input
                 type="number"
                 step="0.01"
-                min="0"
-                placeholder="0.00"
                 value={openingAmount}
-                onChange={(e) => setOpeningAmount(e.target.value)}
+                onChange={(event) => setOpeningAmount(event.target.value)}
+                placeholder="0.00"
               />
-              <p className="text-xs text-muted-foreground">
-                Ingresa el efectivo con el que inicias tu turno
-              </p>
             </div>
           </div>
+
           <DialogFooter>
             <Button variant="outline" onClick={() => setOpenDialogOpen(false)}>
               Cancelar
             </Button>
-            <Button onClick={handleOpenSession} disabled={!selectedRegister}>
-              Abrir Caja
-            </Button>
+            <Button onClick={handleOpenSession}>Abrir caja</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
 
-      {/* Close Session Dialog */}
       <Dialog open={closeDialogOpen} onOpenChange={setCloseDialogOpen}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Cerrar Caja</DialogTitle>
+            <DialogTitle>Cerrar caja</DialogTitle>
             <DialogDescription>
-              Cuenta el efectivo en caja e ingresa el monto real.
+              Registra el monto contado al finalizar tu turno.
             </DialogDescription>
           </DialogHeader>
-          <div className="space-y-4 py-4">
-            {summary && (
-              <div className="p-4 bg-muted/50 rounded-lg space-y-2">
-                <div className="flex justify-between text-sm">
-                  <span>Efectivo esperado:</span>
-                  <span className="font-semibold">{formatCurrency(summary.expectedCash)}</span>
-                </div>
-                <div className="flex justify-between text-sm">
-                  <span>Total ventas:</span>
-                  <span>{formatCurrency(summary.totalSales)}</span>
-                </div>
-              </div>
-            )}
+
+          <div className="space-y-4">
             <div className="space-y-2">
-              <Label>Monto real en caja</Label>
+              <Label>Monto contado</Label>
               <Input
                 type="number"
                 step="0.01"
-                min="0"
-                placeholder="0.00"
                 value={closingAmount}
-                onChange={(e) => setClosingAmount(e.target.value)}
+                onChange={(event) => setClosingAmount(event.target.value)}
+                placeholder="0.00"
               />
             </div>
-            {closingAmount && summary && (
-              <div className={`p-3 rounded-lg ${
-                parseFloat(closingAmount) === summary.expectedCash
-                  ? 'bg-green-50 text-green-700 dark:bg-green-950/20'
-                  : parseFloat(closingAmount) > summary.expectedCash
-                    ? 'bg-blue-50 text-blue-700 dark:bg-blue-950/20'
-                    : 'bg-red-50 text-red-700 dark:bg-red-950/20'
-              }`}>
-                <div className="flex items-center gap-2">
-                  {parseFloat(closingAmount) === summary.expectedCash ? (
-                    <CheckCircle2 className="h-4 w-4" />
-                  ) : (
-                    <AlertCircle className="h-4 w-4" />
-                  )}
-                  <span className="font-medium">
-                    Diferencia: {formatCurrency(parseFloat(closingAmount) - summary.expectedCash)}
-                  </span>
-                </div>
-              </div>
-            )}
+
             <div className="space-y-2">
-              <Label>Notas u observaciones</Label>
+              <Label>Notas</Label>
               <Textarea
-                placeholder="Observaciones del turno..."
                 value={closingNotes}
-                onChange={(e) => setClosingNotes(e.target.value)}
+                onChange={(event) => setClosingNotes(event.target.value)}
+                placeholder="Observaciones del cierre"
               />
             </div>
+
+            {summary && (
+              <>
+                <Separator />
+                <div className="text-sm space-y-1">
+                  <div className="flex justify-between">
+                    <span>Efectivo esperado:</span>
+                    <span className="font-medium">{formatCurrency(summary.expectedCash)}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span>Monto contado:</span>
+                    <span className="font-medium">
+                      {formatCurrency(parseFloat(closingAmount) || 0)}
+                    </span>
+                  </div>
+                  <div className="flex justify-between font-semibold">
+                    <span>Diferencia:</span>
+                    <span>
+                      {formatCurrency((parseFloat(closingAmount) || 0) - summary.expectedCash)}
+                    </span>
+                  </div>
+                </div>
+              </>
+            )}
           </div>
+
           <DialogFooter>
             <Button variant="outline" onClick={() => setCloseDialogOpen(false)}>
               Cancelar
             </Button>
-            <Button onClick={handleCloseSession} variant="destructive">
-              Cerrar Caja
+            <Button variant="destructive" onClick={handleCloseSession}>
+              Confirmar cierre
             </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
 
-      {/* Movement Dialog */}
       <Dialog open={movementDialogOpen} onOpenChange={setMovementDialogOpen}>
         <DialogContent>
           <DialogHeader>
             <DialogTitle>
-              {movementType === 'deposit' ? 'Registrar Depósito' : 'Registrar Retiro'}
+              {movementType === 'deposit' ? 'Registrar depósito' : 'Registrar retiro'}
             </DialogTitle>
             <DialogDescription>
-              {movementType === 'deposit'
-                ? 'Registra un ingreso de efectivo a la caja.'
-                : 'Registra una salida de efectivo de la caja.'}
+              Agrega un movimiento manual a la caja actual.
             </DialogDescription>
           </DialogHeader>
-          <div className="space-y-4 py-4">
+
+          <div className="space-y-4">
             <div className="space-y-2">
               <Label>Monto</Label>
               <Input
                 type="number"
                 step="0.01"
-                min="0"
-                placeholder="0.00"
                 value={movementAmount}
-                onChange={(e) => setMovementAmount(e.target.value)}
+                onChange={(event) => setMovementAmount(event.target.value)}
+                placeholder="0.00"
               />
             </div>
+
             <div className="space-y-2">
-              <Label>Descripción (opcional)</Label>
-              <Input
-                placeholder={movementType === 'deposit' ? 'Ej: Cambio para caja' : 'Ej: Pago a proveedor'}
+              <Label>Descripción</Label>
+              <Textarea
                 value={movementDescription}
-                onChange={(e) => setMovementDescription(e.target.value)}
+                onChange={(event) => setMovementDescription(event.target.value)}
+                placeholder="Describe el motivo del movimiento"
               />
             </div>
           </div>
+
           <DialogFooter>
             <Button variant="outline" onClick={() => setMovementDialogOpen(false)}>
               Cancelar
             </Button>
             <Button onClick={handleAddMovement}>
-              {movementType === 'deposit' ? 'Registrar Depósito' : 'Registrar Retiro'}
+              {movementType === 'deposit' ? 'Guardar depósito' : 'Guardar retiro'}
             </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
 
-      {/* History Dialog */}
       <Dialog open={historyDialogOpen} onOpenChange={setHistoryDialogOpen}>
-        <DialogContent className="max-w-3xl max-h-[80vh]">
+        <DialogContent className="max-w-4xl">
           <DialogHeader>
-            <DialogTitle>Historial de Cortes</DialogTitle>
-            <DialogDescription>
-              Últimos cortes de caja de esta sucursal
-            </DialogDescription>
+            <DialogTitle>Historial de cortes</DialogTitle>
+            <DialogDescription>Últimos cierres de caja de la sucursal actual.</DialogDescription>
           </DialogHeader>
+
           <ScrollArea className="max-h-[60vh]">
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>Fecha</TableHead>
                   <TableHead>Caja</TableHead>
-                  <TableHead className="text-right">Ventas</TableHead>
-                  <TableHead className="text-right">Esperado</TableHead>
-                  <TableHead className="text-right">Declarado</TableHead>
-                  <TableHead className="text-right">Diferencia</TableHead>
+                  <TableHead>Apertura</TableHead>
+                  <TableHead>Cierre</TableHead>
+                  <TableHead>Inicial</TableHead>
+                  <TableHead>Cierre</TableHead>
+                  <TableHead>Diferencia</TableHead>
+                  <TableHead>Estado</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {sessionHistory.map((session) => (
-                  <TableRow key={session.id}>
-                    <TableCell className="font-mono text-sm">
-                      {formatDateTime(session.closedAt || session.openedAt)}
-                    </TableCell>
-                    <TableCell>{getRegisterName(session.cashRegisterId)}</TableCell>
-                    <TableCell className="text-right">
-                      {formatCurrency(
-                        salesDB.getBySession(session.id)
-                          .filter((s) => s.status === 'completed')
-                          .reduce((sum, s) => sum + s.total, 0)
-                      )}
-                    </TableCell>
-                    <TableCell className="text-right">
-                      {formatCurrency(session.expectedAmount || 0)}
-                    </TableCell>
-                    <TableCell className="text-right">
-                      {formatCurrency(session.closingAmount || 0)}
-                    </TableCell>
-                    <TableCell className={`text-right font-medium ${
-                      (session.difference || 0) === 0
-                        ? 'text-green-600'
-                        : (session.difference || 0) > 0
-                          ? 'text-blue-600'
-                          : 'text-red-600'
-                    }`}>
-                      {formatCurrency(session.difference || 0)}
-                    </TableCell>
-                  </TableRow>
-                ))}
-                {sessionHistory.length === 0 && (
+                {sessionHistory.length > 0 ? (
+                  sessionHistory.map((session) => (
+                    <TableRow key={session.id}>
+                      <TableCell>{getRegisterName(session.cashRegisterId)}</TableCell>
+                      <TableCell>{formatDateTime(session.openedAt)}</TableCell>
+                      <TableCell>{session.closedAt ? formatDateTime(session.closedAt) : '-'}</TableCell>
+                      <TableCell>{formatCurrency(session.openingAmount)}</TableCell>
+                      <TableCell>{formatCurrency(session.closingAmount || 0)}</TableCell>
+                      <TableCell>{formatCurrency(session.difference || 0)}</TableCell>
+                      <TableCell>
+                        <Badge variant={session.status === 'open' ? 'default' : 'secondary'}>
+                          {session.status === 'open' ? 'Abierta' : 'Cerrada'}
+                        </Badge>
+                      </TableCell>
+                    </TableRow>
+                  ))
+                ) : (
                   <TableRow>
-                    <TableCell colSpan={6} className="text-center text-muted-foreground py-8">
-                      No hay cortes de caja registrados
+                    <TableCell colSpan={7} className="text-center text-muted-foreground">
+                      No hay historial disponible.
                     </TableCell>
                   </TableRow>
                 )}
