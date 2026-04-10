@@ -1,4 +1,4 @@
-\"use client\"
+"use client"
 
 import { useEffect, useState } from "react"
 import { Save, Settings, UserRound } from "lucide-react"
