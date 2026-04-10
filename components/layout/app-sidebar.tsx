@@ -1,7 +1,7 @@
 'use client'
 
 import Link from 'next/link'
-import { usePathname } from 'next/navigation'
+import { usePathname, useRouter } from 'next/navigation'
 import {
   Sidebar,
   SidebarContent,
@@ -27,6 +27,7 @@ import { useAuthStore } from '@/lib/stores/auth-store'
 import { useBranchStore } from '@/lib/stores/branch-store'
 import { useCashStore } from '@/lib/stores/cash-store'
 import { getInitials } from '@/lib/utils/format'
+import { toast } from 'sonner'
 import {
   Store,
   ShoppingCart,
@@ -132,18 +133,24 @@ const adminNavItems = [
 
 export function AppSidebar() {
   const pathname = usePathname()
+  const router = useRouter()
   const { user, logout, hasPermission } = useAuthStore()
   const { currentBranch } = useBranchStore()
   const { currentSession } = useCashStore()
 
   const handleLogout = () => {
+    if (currentSession) {
+      toast.error('Debes cerrar caja antes de cerrar sesión')
+      router.push('/cash-register')
+      return
+    }
     logout()
+    router.push('/login')
   }
 
   const canView = (permission: string) => {
-    // Admin can see everything
+    if (permission === 'settings') return true
     if (user?.role.permissions.includes('*')) return true
-    // Check specific permission or base permission
     return hasPermission(permission) || hasPermission(permission.split('.')[0])
   }
 

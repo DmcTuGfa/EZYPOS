@@ -13,6 +13,7 @@ interface AuthState {
   logout: () => void
   clearError: () => void
   hasPermission: (permission: string) => boolean
+  updateCurrentUser: (user: AuthUser) => void
 }
 
 export const useAuthStore = create<AuthState>((set, get) => ({
@@ -49,6 +50,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   },
 
   logout: () => set({ user: null, error: null, isAuthenticated: false }),
+  updateCurrentUser: (user) => set({ user, isAuthenticated: true }),
   clearError: () => set({ error: null }),
   hasPermission: (permission) => {
     const user = get().user

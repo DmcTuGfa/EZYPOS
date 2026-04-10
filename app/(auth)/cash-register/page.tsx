@@ -94,6 +94,7 @@ export default function CashRegisterPage() {
   const [movementDescription, setMovementDescription] = useState('')
   const [sessionHistory, setSessionHistory] = useState<CashSession[]>([])
   const [summary, setSummary] = useState<SessionSummary | null>(null)
+  const [isClosing, setIsClosing] = useState(false)
 
   useEffect(() => {
     if (currentBranch) {
@@ -154,6 +155,13 @@ export default function CashRegisterPage() {
     void loadSummary()
   }, [currentSession, getSessionSummary])
 
+
+  useEffect(() => {
+    if (closeDialogOpen && summary) {
+      setClosingAmount(String(Number(summary.expectedCash || 0).toFixed(2)))
+    }
+  }, [closeDialogOpen, summary])
+
   const handleOpenSession = async () => {
     if (!user || !currentBranch || !selectedRegister) {
       toast.error('Selecciona una caja para abrir')
@@ -177,17 +185,37 @@ export default function CashRegisterPage() {
   const handleCloseSession = async () => {
     if (!currentSession || !user || !currentBranch) return
 
-    const amount = parseFloat(closingAmount) || 0
-    const closed = await closeSession(amount, closingNotes)
+    const amount = parseFloat(closingAmount)
+    if (Number.isNaN(amount) || amount < 0) {
+      toast.error('Ingresa un monto contado válido')
+      return
+    }
 
-    if (closed) {
+    setIsClosing(true)
+    try {
+      const latestSummary = await getSessionSummary()
+      if (!latestSummary) {
+        toast.error('No se pudo calcular el corte de caja')
+        return
+      }
+
+      setSummary(latestSummary as SessionSummary)
+      const closed = await closeSession(amount, closingNotes)
+
+      if (!closed) {
+        toast.error('No se pudo cerrar la caja')
+        return
+      }
+
       toast.success('Caja cerrada exitosamente')
       setCloseDialogOpen(false)
       setClosingAmount('')
       setClosingNotes('')
       await loadCurrentSession(user.id, currentBranch.id)
-    } else {
-      toast.error('Error al cerrar la caja')
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Error al cerrar la caja')
+    } finally {
+      setIsClosing(false)
     }
   }
 
@@ -530,8 +558,8 @@ export default function CashRegisterPage() {
             <Button variant="outline" onClick={() => setCloseDialogOpen(false)}>
               Cancelar
             </Button>
-            <Button variant="destructive" onClick={handleCloseSession}>
-              Confirmar cierre
+            <Button variant="destructive" onClick={handleCloseSession} disabled={isClosing}>
+              {isClosing ? "Cerrando..." : "Confirmar cierre"}
             </Button>
           </DialogFooter>
         </DialogContent>
