@@ -14,10 +14,10 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { useProductsStore } from "@/lib/stores/products-store"
 import { useBranchStore } from "@/lib/stores/branch-store"
 import { useAuthStore } from "@/lib/stores/auth-store"
-
+import { useIsMobile } from "@/hooks/use-mobile"
 import { formatDate } from "@/lib/utils/format"
 import { apiFetch } from "@/lib/api/client"
-import { BarcodeScanButton } from "@/components/barcode/barcode-scanner-modal"
+import { BarcodeScannerModal } from "@/components/barcode/barcode-scanner-modal"
 import type { InventoryMovement, ProductStock } from "@/lib/types"
 
 type MovementType = "entry" | "exit" | "adjustment" | "transfer"
@@ -26,7 +26,7 @@ export default function InventoryPage() {
   const { products, loadProducts } = useProductsStore()
   const { currentBranch, branches, loadBranches } = useBranchStore()
   const { user } = useAuthStore()
-  
+  const isMobile = useIsMobile()
 
   const [searchTerm, setSearchTerm] = useState("")
   const [movements, setMovements] = useState<InventoryMovement[]>([])
@@ -34,8 +34,8 @@ export default function InventoryPage() {
   const [isMovementDialogOpen, setIsMovementDialogOpen] = useState(false)
   const [movementType, setMovementType] = useState<MovementType>("entry")
   const [movementForm, setMovementForm] = useState({ productId: "", quantity: "", reason: "", targetBranchId: "" })
-  
-  
+  const [scannerOpen, setScannerOpen] = useState(false)
+  const [scannerTarget, setScannerTarget] = useState<"search" | "movement">("search")
 
   useEffect(() => { loadProducts(); loadBranches() }, [loadProducts, loadBranches])
   useEffect(() => { void refreshData() }, [currentBranch?.id])
@@ -84,6 +84,16 @@ export default function InventoryPage() {
     setIsMovementDialogOpen(false)
     await refreshData()
     await loadProducts()
+  }
+
+  const handleBarcodeScan = (code: string) => {
+    if (scannerTarget === "search") {
+      setSearchTerm(code)
+    } else {
+      // Find product by barcode/SKU and set in movement form
+      const found = products.find(p => p.barcode === code || p.sku === code)
+      if (found) setMovementForm(f => ({ ...f, productId: found.id }))
+    }
   }
 
   const getMovementTypeLabel = (type: string) =>
@@ -136,11 +146,12 @@ export default function InventoryPage() {
                     className="pl-10"
                   />
                 </div>
-                <BarcodeScanButton
-                  onScan={(code) => setSearchTerm(code)}
-                  title="Buscar por código"
-                  className="shrink-0"
-                />
+                {isMobile && (
+                  <Button variant="outline" size="icon" className="shrink-0"
+                    onClick={() => { setScannerTarget("search"); setScannerOpen(true) }}>
+                    <ScanLine className="h-4 w-4" />
+                  </Button>
+                )}
               </div>
             </CardHeader>
             <CardContent className="p-0 sm:p-6 sm:pt-0">
@@ -235,14 +246,12 @@ export default function InventoryPage() {
                     ))}
                   </SelectContent>
                 </Select>
-                <BarcodeScanButton
-                  onScan={(code) => {
-                    const found = products.find(p => p.barcode === code || p.sku === code)
-                    if (found) setMovementForm(f => ({ ...f, productId: found.id }))
-                  }}
-                  title="Seleccionar producto"
-                  className="shrink-0"
-                />
+                {isMobile && (
+                  <Button variant="outline" size="icon" className="shrink-0"
+                    onClick={() => { setScannerTarget("movement"); setScannerOpen(true) }}>
+                    <ScanLine className="h-4 w-4" />
+                  </Button>
+                )}
               </div>
             </div>
             <div className="space-y-2">
@@ -273,6 +282,14 @@ export default function InventoryPage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Barcode scanner */}
+      <BarcodeScannerModal
+        open={scannerOpen}
+        onOpenChange={setScannerOpen}
+        onScan={handleBarcodeScan}
+        title={scannerTarget === "search" ? "Buscar por código" : "Seleccionar producto"}
+      />
     </div>
   )
 }
