@@ -21,6 +21,7 @@ import { ProductGrid } from '@/components/pos/product-grid'
 import { CartList } from '@/components/pos/cart-list'
 import { CartSummary } from '@/components/pos/cart-summary'
 import { PaymentPanel } from '@/components/pos/payment-panel'
+import { CartScanButton } from '@/components/pos/cart-scan-button'
 import { useCartStore } from '@/lib/stores/cart-store'
 import { useCashStore } from '@/lib/stores/cash-store'
 import { useBranchStore } from '@/lib/stores/branch-store'
@@ -147,12 +148,16 @@ export default function POSPage() {
             {/* Cart header */}
             <div className="flex items-center justify-between px-4 py-3 border-b bg-background shrink-0">
               <span className="font-semibold text-sm">Resumen de venta</span>
-              {hasItems && (
-                <Button variant="ghost" size="sm" onClick={() => setClearCartDialogOpen(true)} className="text-destructive hover:text-destructive h-8 px-2">
-                  <Trash2 className="h-4 w-4 mr-1" />
-                  Vaciar
-                </Button>
-              )}
+              <div className="flex items-center gap-1">
+                <CartScanButton />
+                {hasItems && (
+                  <Button variant="ghost" size="sm" onClick={() => setClearCartDialogOpen(true)} className="text-destructive hover:text-destructive h-8 px-2">
+                    <Trash2 className="h-4 w-4 mr-1" />
+                    Vaciar
+                  </Button>
+                )}
+              </div>
+            </div>
             </div>
 
             <div className="flex-1 overflow-hidden">
@@ -223,12 +228,15 @@ export default function POSPage() {
                 </Badge>
               )}
             </div>
-            {hasItems && (
-              <Button variant="ghost" size="sm" onClick={() => setClearCartDialogOpen(true)} className="text-destructive hover:text-destructive">
-                <Trash2 className="h-4 w-4 mr-1" />
-                Vaciar
-              </Button>
-            )}
+            <div className="flex items-center gap-1">
+              <CartScanButton />
+              {hasItems && (
+                <Button variant="ghost" size="sm" onClick={() => setClearCartDialogOpen(true)} className="text-destructive hover:text-destructive">
+                  <Trash2 className="h-4 w-4 mr-1" />
+                  Vaciar
+                </Button>
+              )}
+            </div>
           </div>
 
           <div className="flex-1 overflow-hidden">
