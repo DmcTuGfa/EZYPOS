@@ -253,10 +253,10 @@ export default function CashRegisterPage() {
   }
 
   return (
-    <div className="p-4 md:p-6 space-y-6">
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+    <div className="p-4 md:p-6 space-y-4 md:space-y-6">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <div>
-          <h1 className="text-2xl font-bold">Corte de Caja</h1>
+          <h1 className="text-xl font-bold md:text-2xl">Corte de Caja</h1>
           <p className="text-muted-foreground">
             {currentBranch?.name || 'Selecciona una sucursal'}
           </p>
@@ -308,14 +308,14 @@ export default function CashRegisterPage() {
           </Card>
 
           {summary && (
-            <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+            <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
               <Card>
                 <CardHeader className="flex flex-row items-center justify-between pb-2">
                   <CardTitle className="text-sm font-medium">Ventas del Turno</CardTitle>
                   <TrendingUp className="h-4 w-4 text-muted-foreground" />
                 </CardHeader>
                 <CardContent>
-                  <div className="text-2xl font-bold">{formatCurrency(summary.totalSales)}</div>
+                  <div className="text-lg font-bold sm:text-2xl">{formatCurrency(summary.totalSales)}</div>
                   <p className="text-xs text-muted-foreground">
                     {summary.salesCount} {summary.salesCount === 1 ? 'venta' : 'ventas'}
                   </p>
@@ -328,7 +328,7 @@ export default function CashRegisterPage() {
                   <Banknote className="h-4 w-4 text-muted-foreground" />
                 </CardHeader>
                 <CardContent>
-                  <div className="text-2xl font-bold">{formatCurrency(summary.expectedCash)}</div>
+                  <div className="text-lg font-bold sm:text-2xl">{formatCurrency(summary.expectedCash)}</div>
                   <p className="text-xs text-muted-foreground">
                     Apertura + ventas en efectivo + depósitos - retiros
                   </p>
@@ -341,7 +341,7 @@ export default function CashRegisterPage() {
                   <Plus className="h-4 w-4 text-green-600" />
                 </CardHeader>
                 <CardContent>
-                  <div className="text-2xl font-bold text-green-600">
+                  <div className="text-lg font-bold text-green-600 sm:text-2xl">
                     {formatCurrency(summary.deposits)}
                   </div>
                   <p className="text-xs text-muted-foreground">Ingresos manuales a caja</p>
@@ -354,7 +354,7 @@ export default function CashRegisterPage() {
                   <Minus className="h-4 w-4 text-red-600" />
                 </CardHeader>
                 <CardContent>
-                  <div className="text-2xl font-bold text-red-600">
+                  <div className="text-lg font-bold text-red-600 sm:text-2xl">
                     {formatCurrency(summary.withdrawals)}
                   </div>
                   <p className="text-xs text-muted-foreground">Salidas manuales de caja</p>
@@ -455,7 +455,7 @@ export default function CashRegisterPage() {
       )}
 
       <Dialog open={openDialogOpen} onOpenChange={setOpenDialogOpen}>
-        <DialogContent>
+        <DialogContent className="max-w-[95vw] sm:max-w-md">
           <DialogHeader>
             <DialogTitle>Abrir caja</DialogTitle>
             <DialogDescription>Selecciona la caja y define el monto inicial.</DialogDescription>
@@ -500,7 +500,7 @@ export default function CashRegisterPage() {
       </Dialog>
 
       <Dialog open={closeDialogOpen} onOpenChange={setCloseDialogOpen}>
-        <DialogContent>
+        <DialogContent className="max-w-[95vw] sm:max-w-md">
           <DialogHeader>
             <DialogTitle>Cerrar caja</DialogTitle>
             <DialogDescription>
@@ -566,7 +566,7 @@ export default function CashRegisterPage() {
       </Dialog>
 
       <Dialog open={movementDialogOpen} onOpenChange={setMovementDialogOpen}>
-        <DialogContent>
+        <DialogContent className="max-w-[95vw] sm:max-w-md">
           <DialogHeader>
             <DialogTitle>
               {movementType === 'deposit' ? 'Registrar depósito' : 'Registrar retiro'}
@@ -610,7 +610,7 @@ export default function CashRegisterPage() {
       </Dialog>
 
       <Dialog open={historyDialogOpen} onOpenChange={setHistoryDialogOpen}>
-        <DialogContent className="max-w-4xl">
+        <DialogContent className="max-w-[95vw] sm:max-w-2xl">
           <DialogHeader>
             <DialogTitle>Historial de cortes</DialogTitle>
             <DialogDescription>Últimos cierres de caja de la sucursal actual.</DialogDescription>

@@ -56,7 +56,7 @@ const mainNavItems = [
     permission: 'pos',
   },
   {
-    title: 'Caja',
+    title: 'Cerrar Caja',
     url: '/cash-register',
     icon: Wallet,
     permission: 'cash',
@@ -203,20 +203,27 @@ export function AppSidebar() {
           <SidebarGroupLabel>Principal</SidebarGroupLabel>
           <SidebarGroupContent>
             <SidebarMenu>
-              {filterItems(mainNavItems).map((item) => (
-                <SidebarMenuItem key={item.url}>
-                  <SidebarMenuButton
-                    asChild
-                    isActive={pathname === item.url}
-                    tooltip={item.title}
-                  >
-                    <Link href={item.url}>
-                      <item.icon />
-                      <span>{item.title}</span>
+              {/* Punto de Venta */}
+              {canView('pos') && (
+                <SidebarMenuItem>
+                  <SidebarMenuButton asChild isActive={pathname === '/pos'} tooltip="Punto de Venta">
+                    <Link href="/pos">
+                      <ShoppingCart />
+                      <span>Punto de Venta</span>
                     </Link>
                   </SidebarMenuButton>
                 </SidebarMenuItem>
-              ))}
+              )}
+
+              {/* Cerrar Caja — siempre visible debajo de Punto de Venta */}
+              <SidebarMenuItem>
+                <SidebarMenuButton asChild isActive={pathname === '/cash-register'} tooltip="Cerrar Caja">
+                  <Link href="/cash-register">
+                    <Wallet />
+                    <span>Cerrar Caja</span>
+                  </Link>
+                </SidebarMenuButton>
+              </SidebarMenuItem>
             </SidebarMenu>
           </SidebarGroupContent>
         </SidebarGroup>

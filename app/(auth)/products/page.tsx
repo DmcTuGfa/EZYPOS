@@ -1,7 +1,9 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import { Plus, Search, Package, Edit, Trash2, AlertTriangle } from "lucide-react"
+import { BarcodeScanButton } from "@/components/barcode/barcode-scanner-modal"
+
+import { Plus, Search, Package, Edit, Trash2, AlertTriangle, ScanLine } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -47,6 +49,8 @@ export default function ProductsPage() {
   const [editingProduct, setEditingProduct] = useState<Product | null>(null)
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false)
   const [productToDelete, setProductToDelete] = useState<Product | null>(null)
+  
+  
   
   const [formData, setFormData] = useState({
     name: "",
@@ -371,12 +375,20 @@ export default function ProductsPage() {
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label htmlFor="barcode">Código de Barras</Label>
-                <Input
-                  id="barcode"
-                  value={formData.barcode}
-                  onChange={(e) => setFormData({ ...formData, barcode: e.target.value })}
-                  placeholder="Código de barras"
-                />
+                <div className="flex gap-2">
+                  <Input
+                    id="barcode"
+                    value={formData.barcode}
+                    onChange={(e) => setFormData({ ...formData, barcode: e.target.value })}
+                    placeholder="Código de barras"
+                    className="flex-1"
+                  />
+                  <BarcodeScanButton
+                    onScan={(code) => setFormData(f => ({ ...f, barcode: code }))}
+                    title="Escanear código de barras"
+                    className="shrink-0"
+                  />
+                </div>
               </div>
               <div className="space-y-2">
                 <Label htmlFor="category">Categoría</Label>

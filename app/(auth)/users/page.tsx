@@ -50,7 +50,7 @@ export default function UsersPage() {
     setForm({
       name: user.name,
       email: user.email,
-      passwordHash: user.passwordHash,
+      passwordHash: '',
       roleId: user.roleId,
       branchId: user.branchId || 'none',
       isGlobalAccess: user.isGlobalAccess,
@@ -112,7 +112,7 @@ export default function UsersPage() {
           <div className="grid gap-4 py-2">
             <div className="space-y-2"><Label>Nombre</Label><Input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} /></div>
             <div className="space-y-2"><Label>Correo</Label><Input value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value.toLowerCase() })} /></div>
-            <div className="space-y-2"><Label>Contraseña</Label><Input value={form.passwordHash} onChange={(e) => setForm({ ...form, passwordHash: e.target.value })} /></div>
+            <div className="space-y-2"><Label>Contraseña {editing && <span className="text-xs text-muted-foreground font-normal">(dejar vacío para no cambiar)</span>}</Label><Input type="password" value={form.passwordHash} placeholder={editing ? "••••••••" : "Contraseña"} onChange={(e) => setForm({ ...form, passwordHash: e.target.value })} /></div>
             <div className="space-y-2"><Label>Rol</Label>
               <Select value={form.roleId} onValueChange={(value) => setForm({ ...form, roleId: value })}>
                 <SelectTrigger><SelectValue placeholder="Selecciona rol" /></SelectTrigger>
