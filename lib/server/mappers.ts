@@ -11,7 +11,7 @@ export function mapBranch(r: any): Branch {
   return { id:r.id, name:r.name, code:r.code, address:r.address||'', city:r.city||'', state:r.state||'', postalCode:r.postal_code||'', phone:r.phone||'', isActive:r.is_active, createdAt:new Date(r.created_at), updatedAt:new Date(r.updated_at) }
 }
 export function mapUser(r: any): User {
-  return { id:r.id, email:r.email, passwordHash:r.password_hash||'', name:r.name, roleId:r.role_id, branchId:r.branch_id, isGlobalAccess:r.is_global_access, isActive:r.is_active, createdAt:new Date(r.created_at), updatedAt:new Date(r.updated_at) }
+  return { id:r.id, email:r.email, passwordHash:'', name:r.name, roleId:r.role_id, branchId:r.branch_id, isGlobalAccess:r.is_global_access, isActive:r.is_active, createdAt:new Date(r.created_at), updatedAt:new Date(r.updated_at) }
 }
 export function mapCategory(r: any): Category {
   return { id:r.id, name:r.name, description:r.description||'', isActive:r.is_active, createdAt:new Date(r.created_at) }

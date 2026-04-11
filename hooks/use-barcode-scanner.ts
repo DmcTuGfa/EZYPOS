@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useCallback, useState } from 'react'
 
-interface UseBarcodeScanner {
+export interface UseBarcodeScanner {
   isScanning: boolean
   startScan: () => Promise<void>
   stopScan: () => void
@@ -10,27 +10,17 @@ interface UseBarcodeScanner {
   error: string | null
 }
 
-declare global {
-  interface Window {
-    BarcodeDetector: new (options?: { formats: string[] }) => {
-      detect: (source: HTMLVideoElement) => Promise<Array<{ rawValue: string }>>
-    }
-  }
-}
-
 export function useBarcodeScanner(onScan: (code: string) => void): UseBarcodeScanner {
   const [isScanning, setIsScanning] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const videoRef = useRef<HTMLVideoElement | null>(null)
   const streamRef = useRef<MediaStream | null>(null)
-  const animFrameRef = useRef<number | null>(null)
-  const detectorRef = useRef<InstanceType<typeof window.BarcodeDetector> | null>(null)
+  const readerRef = useRef<any>(null)
+  const activeRef = useRef(false) // usamos ref para el loop, no state
 
   const stopScan = useCallback(() => {
-    if (animFrameRef.current) {
-      cancelAnimationFrame(animFrameRef.current)
-      animFrameRef.current = null
-    }
+    activeRef.current = false
+    try { readerRef.current?.reset() } catch {}
     if (streamRef.current) {
       streamRef.current.getTracks().forEach((t) => t.stop())
       streamRef.current = null
@@ -44,57 +34,77 @@ export function useBarcodeScanner(onScan: (code: string) => void): UseBarcodeSca
   const startScan = useCallback(async () => {
     setError(null)
     try {
-      if (!('BarcodeDetector' in window)) {
-        setError('Tu navegador no soporta detección de códigos de barras. Intenta con Chrome en Android.')
+      // Importamos zxing dinámicamente para no romper SSR
+      const { BrowserMultiFormatReader, NotFoundException } = await import('@zxing/library')
+
+      const reader = new BrowserMultiFormatReader()
+      readerRef.current = reader
+
+      // Pedir cámara trasera
+      const devices = await BrowserMultiFormatReader.listVideoInputDevices()
+      // Preferir cámara trasera (environment)
+      const back = devices.find(d =>
+        d.label.toLowerCase().includes('back') ||
+        d.label.toLowerCase().includes('rear') ||
+        d.label.toLowerCase().includes('trasera') ||
+        d.label.toLowerCase().includes('environment')
+      ) || devices[devices.length - 1] // último suele ser trasera en móvil
+
+      if (!back) {
+        setError('No se encontró cámara en este dispositivo.')
         return
-      }
-      if (!detectorRef.current) {
-        detectorRef.current = new window.BarcodeDetector({
-          formats: [
-            'ean_13', 'ean_8', 'code_128', 'code_39',
-            'qr_code', 'upc_a', 'upc_e', 'itf',
-          ],
-        })
       }
 
       const stream = await navigator.mediaDevices.getUserMedia({
-        video: { facingMode: 'environment', width: { ideal: 1280 }, height: { ideal: 720 } },
+        video: { deviceId: { exact: back.deviceId }, facingMode: 'environment' },
       })
       streamRef.current = stream
 
-      if (videoRef.current) {
-        videoRef.current.srcObject = stream
-        await videoRef.current.play()
-        setIsScanning(true)
+      if (!videoRef.current) return
+      videoRef.current.srcObject = stream
+      await videoRef.current.play()
+      activeRef.current = true
+      setIsScanning(true)
 
-        const detect = async () => {
-          if (!videoRef.current || !detectorRef.current || !isScanning) return
-          try {
-            const barcodes = await detectorRef.current.detect(videoRef.current)
-            if (barcodes.length > 0) {
-              const code = barcodes[0].rawValue
-              onScan(code)
-              stopScan()
-              return
-            }
-          } catch {
-            // detection error, continue loop
+      // Loop de detección
+      const decode = async () => {
+        if (!activeRef.current || !videoRef.current) return
+        try {
+          const result = await reader.decodeFromVideoElement(videoRef.current)
+          if (result && activeRef.current) {
+            onScan(result.getText())
+            stopScan()
+            return
           }
-          animFrameRef.current = requestAnimationFrame(detect)
+        } catch (e: any) {
+          // NotFoundException es normal cuando no hay código en frame — continuamos
+          if (!(e instanceof NotFoundException)) {
+            // error real, detener
+            stopScan()
+            return
+          }
         }
-        animFrameRef.current = requestAnimationFrame(detect)
+        if (activeRef.current) {
+          requestAnimationFrame(decode)
+        }
       }
-    } catch (err) {
-      const msg = err instanceof Error ? err.message : 'Error al acceder a la cámara'
-      setError(msg)
+      requestAnimationFrame(decode)
+
+    } catch (err: any) {
+      const msg = err?.message || 'Error al acceder a la cámara'
+      if (msg.includes('Permission') || msg.includes('permission') || msg.includes('NotAllowed')) {
+        setError('Permiso de cámara denegado. Actívalo en la configuración de tu navegador.')
+      } else if (msg.includes('NotFound') || msg.includes('DevicesNotFound')) {
+        setError('No se encontró cámara en este dispositivo.')
+      } else {
+        setError(`Error de cámara: ${msg}`)
+      }
       stopScan()
     }
-  }, [onScan, stopScan, isScanning])
+  }, [onScan, stopScan])
 
   useEffect(() => {
-    return () => {
-      stopScan()
-    }
+    return () => { stopScan() }
   }, [stopScan])
 
   return { isScanning, startScan, stopScan, videoRef, error }
