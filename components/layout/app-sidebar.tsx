@@ -56,7 +56,7 @@ const mainNavItems = [
     permission: 'pos',
   },
   {
-    title: 'Caja',
+    title: 'Cerrar Caja',
     url: '/cash-register',
     icon: Wallet,
     permission: 'cash',
