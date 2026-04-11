@@ -158,7 +158,6 @@ export default function POSPage() {
                 )}
               </div>
             </div>
-            </div>
 
             <div className="flex-1 overflow-hidden">
               <CartList />
