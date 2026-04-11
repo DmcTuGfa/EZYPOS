@@ -1,8 +1,8 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import { BarcodeScannerModal } from "@/components/barcode/barcode-scanner-modal"
-import { useIsMobile } from "@/hooks/use-mobile"
+import { BarcodeScanButton } from "@/components/barcode/barcode-scanner-modal"
+
 import { Plus, Search, Package, Edit, Trash2, AlertTriangle, ScanLine } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -49,8 +49,8 @@ export default function ProductsPage() {
   const [editingProduct, setEditingProduct] = useState<Product | null>(null)
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false)
   const [productToDelete, setProductToDelete] = useState<Product | null>(null)
-  const [scannerOpen, setScannerOpen] = useState(false)
-  const isMobile = useIsMobile()
+  
+  
   
   const [formData, setFormData] = useState({
     name: "",
@@ -383,18 +383,11 @@ export default function ProductsPage() {
                     placeholder="Código de barras"
                     className="flex-1"
                   />
-                  {isMobile && (
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="icon"
-                      className="shrink-0"
-                      onClick={() => setScannerOpen(true)}
-                      title="Escanear código de barras"
-                    >
-                      <ScanLine className="h-4 w-4" />
-                    </Button>
-                  )}
+                  <BarcodeScanButton
+                    onScan={(code) => setFormData(f => ({ ...f, barcode: code }))}
+                    title="Escanear código de barras"
+                    className="shrink-0"
+                  />
                 </div>
               </div>
               <div className="space-y-2">
@@ -565,14 +558,6 @@ export default function ProductsPage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
-
-      {/* Barcode scanner — móvil, para capturar código al crear/editar producto */}
-      <BarcodeScannerModal
-        open={scannerOpen}
-        onOpenChange={setScannerOpen}
-        onScan={(code) => setFormData((f) => ({ ...f, barcode: code }))}
-        title="Escanear código de barras"
-      />
     </div>
   )
 }
