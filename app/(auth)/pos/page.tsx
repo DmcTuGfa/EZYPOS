@@ -53,9 +53,13 @@ export default function POSPage() {
   const [mobileTab, setMobileTab] = useState<'products' | 'cart'>('products')
 
   useEffect(() => {
-    if (user) loadCurrentSession(user.id)
-    if (currentBranch) loadRegisters(currentBranch.id)
-  }, [user, currentBranch, loadCurrentSession, loadRegisters])
+    if (user && currentBranch) {
+      // Recargar sesión al cambiar sucursal para evitar que admin vea
+      // sesión de otra sucursal
+      loadCurrentSession(user.id, currentBranch.id)
+      loadRegisters(currentBranch.id)
+    }
+  }, [user?.id, currentBranch?.id]) // eslint-disable-line
 
   const total = getTotal()
   const hasItems = items.length > 0
