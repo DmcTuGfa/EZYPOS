@@ -152,7 +152,12 @@ export const useCashStore = create<CashState>((set, get) => ({
     for (const sale of sales) {
       totalSales += sale.total
       for (const payment of allPayments.filter((p) => p.saleId === sale.id)) {
-        byPaymentMethod[payment.method] += payment.amount
+        // Restar el cambio entregado al cliente — el efectivo real en caja
+        // es lo que pagó menos el cambio que salió
+        const netAmount = payment.method === 'cash'
+          ? payment.amount - (payment.changeAmount || 0)
+          : payment.amount
+        byPaymentMethod[payment.method] += netAmount
       }
     }
 
