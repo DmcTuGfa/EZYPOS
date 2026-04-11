@@ -12,104 +12,169 @@ interface BarcodeScannerModalProps {
   title?: string
 }
 
-export function BarcodeScannerModal({
-  open,
-  onOpenChange,
-  onScan,
-  title = 'Escanear código de barras',
-}: BarcodeScannerModalProps) {
+export function BarcodeScannerModal({ open, onOpenChange, onScan, title = 'Escanear código de barras' }: BarcodeScannerModalProps) {
   const videoRef = useRef<HTMLVideoElement | null>(null)
-  const readerRef = useRef<any>(null)
+  const canvasRef = useRef<HTMLCanvasElement | null>(null)
+  const streamRef = useRef<MediaStream | null>(null)
+  const rafRef = useRef<number | null>(null)
   const activeRef = useRef(false)
+  const detectorRef = useRef<any>(null)
+  const zxingRef = useRef<any>(null)
   const [ready, setReady] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
+  const handleDetected = useCallback((code: string) => {
+    if (!activeRef.current || !code) return
+    activeRef.current = false
+    stopStream()
+    onScan(code)
+    onOpenChange(false)
+  }, [onScan, onOpenChange]) // eslint-disable-line
+
+  const stopStream = () => {
+    if (rafRef.current) { cancelAnimationFrame(rafRef.current); rafRef.current = null }
+    if (streamRef.current) { streamRef.current.getTracks().forEach(t => t.stop()); streamRef.current = null }
+    if (videoRef.current) videoRef.current.srcObject = null
+  }
+
   const stopScan = useCallback(() => {
     activeRef.current = false
-    try { readerRef.current?.reset(); readerRef.current = null } catch {}
+    stopStream()
     setReady(false)
     setError(null)
   }, [])
 
+  // ── Detección con BarcodeDetector nativo (Chrome Android) ──
+  const loopNative = useCallback(() => {
+    if (!activeRef.current || !videoRef.current || !detectorRef.current) return
+    const video = videoRef.current
+    if (video.readyState < 2) { rafRef.current = requestAnimationFrame(loopNative); return }
+
+    detectorRef.current.detect(video)
+      .then((barcodes: any[]) => {
+        if (!activeRef.current) return
+        if (barcodes.length > 0 && barcodes[0].rawValue) {
+          handleDetected(barcodes[0].rawValue)
+        } else {
+          rafRef.current = requestAnimationFrame(loopNative)
+        }
+      })
+      .catch(() => {
+        if (activeRef.current) rafRef.current = requestAnimationFrame(loopNative)
+      })
+  }, [handleDetected])
+
+  // ── Detección con zxing sobre canvas (fallback universal) ──
+  const loopZxing = useCallback(() => {
+    if (!activeRef.current || !videoRef.current || !canvasRef.current || !zxingRef.current) return
+    const video = videoRef.current
+    const canvas = canvasRef.current
+    if (video.readyState < 2) { rafRef.current = requestAnimationFrame(loopZxing); return }
+
+    const ctx = canvas.getContext('2d')
+    if (!ctx) return
+    canvas.width = video.videoWidth || 640
+    canvas.height = video.videoHeight || 480
+    ctx.drawImage(video, 0, 0, canvas.width, canvas.height)
+
+    const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height)
+
+    try {
+      const result = zxingRef.current.decodeFromImageData(imageData)
+      if (result) {
+        handleDetected(result)
+      } else {
+        rafRef.current = requestAnimationFrame(loopZxing)
+      }
+    } catch {
+      rafRef.current = requestAnimationFrame(loopZxing)
+    }
+  }, [handleDetected])
+
   const startScan = useCallback(async () => {
-    if (!videoRef.current) return
     setError(null)
     setReady(false)
-    try {
-      const { BrowserMultiFormatReader, DecodeHintType, BarcodeFormat } = await import('@zxing/library')
+    if (!videoRef.current) return
 
+    try {
+      // 1. Obtener stream de cámara trasera
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: { facingMode: { ideal: 'environment' }, width: { ideal: 1280 }, height: { ideal: 720 } }
+      })
+      streamRef.current = stream
+      videoRef.current.srcObject = stream
+      await videoRef.current.play()
+      activeRef.current = true
+      setReady(true)
+
+      // 2. Intentar BarcodeDetector nativo primero
+      if ('BarcodeDetector' in window) {
+        try {
+          detectorRef.current = new (window as any).BarcodeDetector({
+            formats: ['ean_13','ean_8','code_128','code_39','qr_code','upc_a','upc_e','itf','data_matrix']
+          })
+          loopNative()
+          return
+        } catch {
+          // BarcodeDetector disponible pero falló — caer a zxing
+        }
+      }
+
+      // 3. Fallback: zxing leyendo canvas frame a frame
+      const { BrowserMultiFormatReader, DecodeHintType, BarcodeFormat, RGBLuminanceSource, BinaryBitmap, HybridBinarizer } = await import('@zxing/library')
       const hints = new Map()
       hints.set(DecodeHintType.POSSIBLE_FORMATS, [
-        BarcodeFormat.EAN_13,
-        BarcodeFormat.EAN_8,
-        BarcodeFormat.CODE_128,
-        BarcodeFormat.CODE_39,
-        BarcodeFormat.QR_CODE,
-        BarcodeFormat.UPC_A,
-        BarcodeFormat.UPC_E,
-        BarcodeFormat.ITF,
+        BarcodeFormat.EAN_13, BarcodeFormat.EAN_8, BarcodeFormat.CODE_128,
+        BarcodeFormat.CODE_39, BarcodeFormat.QR_CODE, BarcodeFormat.UPC_A,
+        BarcodeFormat.UPC_E, BarcodeFormat.ITF,
       ])
       hints.set(DecodeHintType.TRY_HARDER, true)
 
       const reader = new BrowserMultiFormatReader(hints)
-      readerRef.current = reader
-      activeRef.current = true
 
-      // decodeFromConstraints es continuo — el callback se llama en cada frame
-      reader.decodeFromConstraints(
-        {
-          video: {
-            facingMode: { ideal: 'environment' },
-            width: { ideal: 1280 },
-            height: { ideal: 720 },
-          },
-        },
-        videoRef.current,
-        (result, _err) => {
-          if (!activeRef.current) return
-          if (result) {
-            const code = result.getText()
-            if (code) {
-              stopScan()
-              onScan(code)
-              onOpenChange(false)
+      // Guardar función de decodificación manual en ref
+      zxingRef.current = {
+        decodeFromImageData: (imageData: ImageData) => {
+          try {
+            const len = imageData.width * imageData.height
+            const luminances = new Uint8ClampedArray(len)
+            for (let i = 0; i < len; i++) {
+              const r = imageData.data[i * 4]
+              const g = imageData.data[i * 4 + 1]
+              const b = imageData.data[i * 4 + 2]
+              luminances[i] = (r * 299 + g * 587 + b * 114) / 1000
             }
+            const source = new RGBLuminanceSource(luminances, imageData.width, imageData.height)
+            const bitmap = new BinaryBitmap(new HybridBinarizer(source))
+            const result = reader.decodeBitmap(bitmap)
+            return result?.getText() || null
+          } catch {
+            return null
           }
         }
-      ).catch((e: any) => {
-        if (!activeRef.current) return
-        const msg = e?.message || String(e)
-        if (msg.includes('Permission') || msg.includes('NotAllowed')) {
-          setError('Permiso de cámara denegado. Actívalo en ajustes del navegador.')
-        } else if (msg.includes('NotFound') || msg.includes('not found')) {
-          setError('No se encontró cámara en este dispositivo.')
-        } else if (msg.includes('NotReadable') || msg.includes('Could not start')) {
-          setError('La cámara está en uso por otra app.')
-        } else {
-          setError(`Error: ${msg}`)
-        }
-      })
-
-      // Marcar como listo cuando el video empieza a reproducir
-      videoRef.current.onloadedmetadata = () => setReady(true)
-      // Fallback: si ya tiene datos, marcar listo de inmediato
-      if (videoRef.current.readyState >= 2) setReady(true)
+      }
+      loopZxing()
 
     } catch (err: any) {
-      setError(`Error: ${err?.message || err}`)
+      const msg = err?.message || String(err)
+      if (msg.includes('Permission') || msg.includes('NotAllowed')) {
+        setError('Permiso de cámara denegado. Actívalo en ajustes del navegador.')
+      } else if (msg.includes('NotFound') || msg.includes('not found')) {
+        setError('No se encontró cámara.')
+      } else {
+        setError(`Error: ${msg}`)
+      }
     }
-  }, [onScan, onOpenChange, stopScan])
+  }, [loopNative, loopZxing])
 
-  // Iniciar/detener según open
   useEffect(() => {
     if (open) {
-      // Delay para que React monte el <video> en el DOM
-      const t = setTimeout(() => startScan(), 400)
+      const t = setTimeout(() => startScan(), 350)
       return () => clearTimeout(t)
     } else {
       stopScan()
     }
-  }, [open]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [open]) // eslint-disable-line
 
   return (
     <Dialog open={open} onOpenChange={(v) => { if (!v) stopScan(); onOpenChange(v) }}>
@@ -122,15 +187,10 @@ export function BarcodeScannerModal({
         </DialogHeader>
 
         <div className="relative bg-black w-full overflow-hidden" style={{ aspectRatio: '4/3' }}>
-          <video
-            ref={videoRef}
-            className="w-full h-full object-cover"
-            muted
-            playsInline
-            autoPlay
-          />
+          <video ref={videoRef} className="w-full h-full object-cover" muted playsInline autoPlay />
+          {/* Canvas oculto para zxing fallback */}
+          <canvas ref={canvasRef} className="hidden" />
 
-          {/* Guías de encuadre — solo cuando la cámara está lista */}
           {ready && (
             <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
               <div className="relative w-52 h-36">
@@ -143,18 +203,14 @@ export function BarcodeScannerModal({
             </div>
           )}
 
-          {/* Error */}
           {error && (
             <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 bg-black/85 px-6 text-center">
               <AlertCircle className="h-8 w-8 text-red-400" />
               <p className="text-white text-sm leading-snug">{error}</p>
-              <Button variant="secondary" size="sm" onClick={() => startScan()}>
-                Reintentar
-              </Button>
+              <Button variant="secondary" size="sm" onClick={() => startScan()}>Reintentar</Button>
             </div>
           )}
 
-          {/* Loading */}
           {!ready && !error && (
             <div className="absolute inset-0 flex items-center justify-center bg-black/50">
               <p className="text-white text-sm">Iniciando cámara...</p>
@@ -165,8 +221,7 @@ export function BarcodeScannerModal({
         <div className="px-4 pb-4 pt-3 flex justify-between items-center">
           <p className="text-xs text-muted-foreground">Apunta al código del producto</p>
           <Button variant="ghost" size="sm" onClick={() => { stopScan(); onOpenChange(false) }}>
-            <X className="h-4 w-4 mr-1" />
-            Cerrar
+            <X className="h-4 w-4 mr-1" />Cerrar
           </Button>
         </div>
       </DialogContent>
@@ -174,7 +229,7 @@ export function BarcodeScannerModal({
   )
 }
 
-// ─── Botón disparador — solo en dispositivos táctiles ────────────────────────
+// ─── Botón disparador — solo en dispositivos táctiles ───────────────────────
 interface BarcodeScanButtonProps {
   onScan: (code: string) => void
   title?: string
@@ -194,22 +249,11 @@ export function BarcodeScanButton({ onScan, title, className, size = 'icon' }: B
 
   return (
     <>
-      <Button
-        type="button"
-        variant="outline"
-        size={size}
-        className={className}
-        onClick={() => setOpen(true)}
-        title="Escanear código de barras"
-      >
+      <Button type="button" variant="outline" size={size} className={className}
+        onClick={() => setOpen(true)} title="Escanear código de barras">
         <ScanLine className="h-4 w-4" />
       </Button>
-      <BarcodeScannerModal
-        open={open}
-        onOpenChange={setOpen}
-        onScan={onScan}
-        title={title}
-      />
+      <BarcodeScannerModal open={open} onOpenChange={setOpen} onScan={onScan} title={title} />
     </>
   )
 }
