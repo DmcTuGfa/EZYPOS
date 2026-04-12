@@ -32,11 +32,12 @@ export default function AuthLayout({
 
   useEffect(() => {
     if (user) {
-      loadBranches()
-      // Set default branch based on user's assigned branch
-      if (user.branch) {
-        setCurrentBranchById(user.branch.id)
-      }
+      loadBranches().then(() => {
+        // Llamar después de que las sucursales cargaron
+        if (user.branch) {
+          setCurrentBranchById(user.branch.id)
+        }
+      })
     }
   }, [user, loadBranches, setCurrentBranchById])
 

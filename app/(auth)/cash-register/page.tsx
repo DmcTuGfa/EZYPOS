@@ -165,15 +165,20 @@ export default function CashRegisterPage() {
       return
     }
     const amount = parseFloat(openingAmount) || 0
-    const session = await openSession(selectedRegister, user.id, currentBranch.id, amount)
-    if (session) {
-      toast.success('Caja abierta exitosamente')
-      setOpenDialogOpen(false)
-      setOpeningAmount('')
-      setSelectedRegister('')
-      await loadCurrentSession(user.id, currentBranch.id)
-    } else {
-      toast.error('No se pudo abrir la caja. Verifica que no tengas otra caja abierta.')
+    try {
+      const session = await openSession(selectedRegister, user.id, currentBranch.id, amount)
+      if (session) {
+        toast.success('Caja abierta exitosamente')
+        setOpenDialogOpen(false)
+        setOpeningAmount('')
+        setSelectedRegister('')
+        await Promise.all([
+          loadCurrentSession(user.id, currentBranch.id),
+          loadRegisters(currentBranch.id),
+        ])
+      }
+    } catch (e: any) {
+      toast.error(e?.message || 'No se pudo abrir la caja')
     }
   }
 
@@ -241,7 +246,14 @@ export default function CashRegisterPage() {
             <History className="h-4 w-4 mr-2" />Historial
           </Button>
           {!currentSession ? (
-            <Button size="sm" onClick={() => setOpenDialogOpen(true)} disabled={!currentBranch}>
+            <Button size="sm" onClick={async () => {
+              if (currentBranch) {
+                setIsLoadingRegisters(true)
+                await loadRegisters(currentBranch.id)
+                setIsLoadingRegisters(false)
+              }
+              setOpenDialogOpen(true)
+            }} disabled={!currentBranch}>
               <Wallet className="h-4 w-4 mr-2" />Abrir Caja
             </Button>
           ) : (
@@ -398,7 +410,14 @@ export default function CashRegisterPage() {
                 <span className="block mt-1 text-amber-600">⚠ Esta sucursal no tiene cajas registradas.</span>
               )}
             </p>
-            <Button onClick={() => setOpenDialogOpen(true)} disabled={registers.length === 0 || isLoadingRegisters}>
+            <Button onClick={async () => {
+              if (currentBranch) {
+                setIsLoadingRegisters(true)
+                await loadRegisters(currentBranch.id)
+                setIsLoadingRegisters(false)
+              }
+              setOpenDialogOpen(true)
+            }} disabled={registers.length === 0 || isLoadingRegisters}>
               <Wallet className="h-4 w-4 mr-2" />
               {isLoadingRegisters ? 'Cargando...' : registers.length === 0 ? 'Sin cajas disponibles' : 'Abrir Caja'}
             </Button>

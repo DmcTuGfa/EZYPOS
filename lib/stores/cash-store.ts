@@ -42,17 +42,17 @@ export const useCashStore = create<CashState>((set, get) => ({
   },
 
   openSession: async (registerId, userId, branchId, openingAmount) => {
-    const res = await apiFetch<{ session: CashSession }>('/api/cash/sessions', {
-      method: 'POST',
-      body: JSON.stringify({
-        cashRegisterId: registerId,
-        userId,
-        branchId,
-        openingAmount,
-      }),
-    })
-    set({ currentSession: res.session })
-    return res.session
+    try {
+      const res = await apiFetch<{ session: CashSession }>('/api/cash/sessions', {
+        method: 'POST',
+        body: JSON.stringify({ cashRegisterId: registerId, userId, branchId, openingAmount }),
+      })
+      set({ currentSession: res.session })
+      return res.session
+    } catch (e: any) {
+      // Re-lanzar para que la UI muestre el mensaje de error del servidor
+      throw e
+    }
   },
 
   closeSession: async (closingAmount, notes) => {

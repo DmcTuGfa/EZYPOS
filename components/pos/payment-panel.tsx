@@ -81,12 +81,13 @@ export function PaymentPanel({ open, onOpenChange, onSaleComplete }: PaymentPane
 
   useEffect(() => {
     if (open) {
+      // Solo resetear al ABRIR el panel, no cuando cambia remaining
       setPaymentAmount(remaining.toFixed(2))
       setSelectedMethod('cash')
       setPaymentReference('')
       setError(null)
     }
-  }, [open, remaining])
+  }, [open]) // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     if (customerSearchQuery.length >= 2) {
@@ -137,7 +138,6 @@ export function PaymentPanel({ open, onOpenChange, onSaleComplete }: PaymentPane
     setError(null)
 
     try {
-      // Calculate change for cash payment
       const finalPayments = payments.map((p) => ({
         ...p,
         changeAmount: p.method === 'cash' ? Math.max(0, totalPaid - total) : 0,
@@ -162,8 +162,8 @@ export function PaymentPanel({ open, onOpenChange, onSaleComplete }: PaymentPane
       } else {
         setError('Error al crear la venta')
       }
-    } catch {
-      setError('Error al procesar la venta')
+    } catch (e: any) {
+      setError(e?.message || 'Error al procesar la venta')
     } finally {
       setIsProcessing(false)
     }
