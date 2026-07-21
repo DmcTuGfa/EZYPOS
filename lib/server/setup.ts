@@ -199,6 +199,15 @@ export async function ensureDatabaseSetup() {
     );
   `)
 
+  // --- Configuración general del sistema (marca, módulos) ---
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS app_settings (
+      key TEXT PRIMARY KEY,
+      value JSONB NOT NULL DEFAULT '{}'::jsonb,
+      updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    );
+  `)
+
   // --- Tabla de abonos / anticipos de clientes ---
   await pool.query(`
     CREATE TABLE IF NOT EXISTS customer_payments (

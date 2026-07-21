@@ -3,9 +3,13 @@ import { ensureDatabaseSetup } from '@/lib/server/setup'
 import { pool } from '@/lib/server/db'
 import { mapBranch } from '@/lib/server/mappers'
 
-export async function GET() {
+export async function GET(request: Request) {
   await ensureDatabaseSetup()
-  const res = await pool.query('SELECT * FROM branches WHERE is_active = true ORDER BY name')
+  const { searchParams } = new URL(request.url)
+  const includeInactive = searchParams.get('all') === 'true'
+  const res = includeInactive
+    ? await pool.query('SELECT * FROM branches ORDER BY is_active DESC, name')
+    : await pool.query('SELECT * FROM branches WHERE is_active = true ORDER BY name')
   return NextResponse.json({ branches: res.rows.map(mapBranch) })
 }
 

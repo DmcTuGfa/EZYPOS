@@ -1,7 +1,8 @@
 "use client"
 
 import { useEffect, useMemo, useState } from 'react'
-import { FileText, Receipt } from 'lucide-react'
+import Link from 'next/link'
+import { FileText, Receipt, Lock, Settings as SettingsIcon } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
@@ -12,25 +13,75 @@ import { Label } from '@/components/ui/label'
 import { useCustomersStore } from '@/lib/stores/customers-store'
 import { useInvoicesStore } from '@/lib/stores/invoices-store'
 import { useSalesStore } from '@/lib/stores/sales-store'
+import { useSettingsStore } from '@/lib/stores/settings-store'
 import { formatCurrency, formatDateTime, formatInvoiceStatus } from '@/lib/utils/format'
 
 export default function InvoicesPage() {
   const { invoices, loadInvoices, createInvoiceFromSale, cancelInvoice } = useInvoicesStore()
   const { sales, loadSales } = useSalesStore()
   const { customers, loadCustomers } = useCustomersStore()
+  const { settings, isLoaded, loadSettings } = useSettingsStore()
   const [reason, setReason] = useState('')
   const [selectedInvoiceId, setSelectedInvoiceId] = useState<string | null>(null)
 
-  useEffect(() => { loadInvoices(); loadSales(); loadCustomers() }, [loadInvoices, loadSales, loadCustomers])
+  useEffect(() => { void loadSettings() }, [loadSettings])
+
+  useEffect(() => {
+    if (settings.invoicingEnabled) {
+      loadInvoices(); loadSales(); loadCustomers()
+    }
+  }, [settings.invoicingEnabled, loadInvoices, loadSales, loadCustomers])
 
   const pendingSales = useMemo(() => sales.filter((sale) => sale.status === 'completed' && sale.invoiceStatus !== 'invoiced' && sale.customerId), [sales])
   const findCustomer = (id: string) => customers.find((item) => item.id === id)
+
+  if (!isLoaded) {
+    return <div className="p-6 text-sm text-muted-foreground">Cargando...</div>
+  }
+
+  // ── Módulo desactivado ──
+  if (!settings.invoicingEnabled) {
+    return (
+      <div className="flex flex-col gap-6 p-4 md:p-6">
+        <div>
+          <h1 className="text-xl font-bold tracking-tight md:text-2xl">Facturación</h1>
+          <p className="text-sm text-muted-foreground">Módulo desactivado</p>
+        </div>
+
+        <Card className="mx-auto w-full max-w-xl">
+          <CardContent className="flex flex-col items-center gap-4 py-10 text-center">
+            <div className="flex h-12 w-12 items-center justify-center rounded-full bg-muted">
+              <Lock className="h-6 w-6 text-muted-foreground" />
+            </div>
+            <div className="space-y-2">
+              <p className="font-medium">La facturación electrónica está desactivada</p>
+              <p className="text-sm text-muted-foreground">
+                Este módulo aún no está conectado a un PAC autorizado por el SAT, por lo que
+                <strong> no emite CFDI válidos</strong>. Se mantiene apagado para evitar marcar
+                ventas como facturadas por error.
+              </p>
+              <p className="text-sm text-muted-foreground">
+                Cuando definas con qué negocios se va a implementar y contrates el servicio de
+                timbrado, se puede activar desde Configuración.
+              </p>
+            </div>
+            <Button asChild variant="outline">
+              <Link href="/settings">
+                <SettingsIcon className="mr-2 h-4 w-4" />
+                Ir a Configuración
+              </Link>
+            </Button>
+          </CardContent>
+        </Card>
+      </div>
+    )
+  }
 
   return (
     <div className="flex flex-col gap-6 p-6">
       <div>
         <h1 className="text-2xl font-bold tracking-tight">Facturación</h1>
-        <p className="text-muted-foreground">Módulo local de facturación demo. Guarda XML simulado en localStorage.</p>
+        <p className="text-muted-foreground">Módulo en modo local. Los comprobantes generados aquí no están timbrados ante el SAT.</p>
       </div>
 
       <div className="grid gap-4 lg:grid-cols-2">
@@ -105,7 +156,7 @@ export default function InvoicesPage() {
       <Card>
         <CardHeader><CardTitle className="flex items-center gap-2"><Receipt className="h-5 w-5" /> Nota importante</CardTitle></CardHeader>
         <CardContent className="text-sm text-muted-foreground">
-          Esta base sigue siendo local. Sirve para pruebas, demo y flujo funcional. Para CFDI real luego se conecta a Facturama, SW o Finkok.
+          Este módulo genera comprobantes locales para probar el flujo. Para emitir CFDI 4.0 válidos hay que conectarlo a un PAC autorizado (Facturapi, Facturama, SW o Finkok) y contar con el Certificado de Sello Digital del negocio.
         </CardContent>
       </Card>
     </div>

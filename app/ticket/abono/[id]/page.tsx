@@ -4,6 +4,7 @@ import { ensureDatabaseSetup } from '@/lib/server/setup'
 import { TicketActions } from '@/components/ticket/ticket-actions'
 import { TicketDivider, TicketPaper, TicketRow } from '@/components/ticket/ticket-paper'
 import { formatCurrency, formatDateTime } from '@/lib/utils/format'
+import { readAppSettings } from '@/lib/server/settings'
 
 export const dynamic = 'force-dynamic'
 
@@ -45,7 +46,7 @@ async function getPayment(id: string) {
 
 export default async function AbonoTicketPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
-  const data = await getPayment(id)
+  const [data, settings] = await Promise.all([getPayment(id), readAppSettings()])
   if (!data) notFound()
 
   const { payment, history } = data
@@ -59,7 +60,16 @@ export default async function AbonoTicketPage({ params }: { params: Promise<{ id
     <>
       <TicketPaper>
         <div className="text-center">
-          <p className="text-base font-bold uppercase tracking-wide">{payment.branch_name}</p>
+          {settings.logoUrl && (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img
+              src={settings.logoUrl}
+              alt={settings.businessName}
+              className="mx-auto mb-2 h-14 w-auto max-w-[180px] object-contain"
+            />
+          )}
+          <p className="text-base font-bold uppercase tracking-wide">{settings.businessName}</p>
+          <p className="text-xs font-medium text-neutral-600">{payment.branch_name}</p>
           {payment.branch_address && <p className="text-xs text-neutral-500">{payment.branch_address}</p>}
           {(payment.branch_city || payment.branch_state) && (
             <p className="text-xs text-neutral-500">
@@ -129,7 +139,7 @@ export default async function AbonoTicketPage({ params }: { params: Promise<{ id
       </TicketPaper>
 
       <TicketActions
-        message={`Comprobante de abono ${payment.folio} por ${formatCurrency(amount)} — ${payment.branch_name}`}
+        message={`Comprobante de abono ${payment.folio} por ${formatCurrency(amount)} — ${settings.businessName}`}
         phone={payment.customer_phone}
       />
     </>

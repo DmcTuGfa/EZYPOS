@@ -4,6 +4,7 @@ import { ensureDatabaseSetup } from '@/lib/server/setup'
 import { TicketActions } from '@/components/ticket/ticket-actions'
 import { TicketDivider, TicketPaper, TicketRow } from '@/components/ticket/ticket-paper'
 import { formatCurrency, formatDateTime } from '@/lib/utils/format'
+import { readAppSettings } from '@/lib/server/settings'
 
 export const dynamic = 'force-dynamic'
 
@@ -43,7 +44,7 @@ async function getSale(id: string) {
 
 export default async function VentaTicketPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
-  const data = await getSale(id)
+  const [data, settings] = await Promise.all([getSale(id), readAppSettings()])
   if (!data) notFound()
 
   const { sale, items, payments } = data
@@ -55,7 +56,16 @@ export default async function VentaTicketPage({ params }: { params: Promise<{ id
     <>
       <TicketPaper>
         <div className="text-center">
-          <p className="text-base font-bold uppercase tracking-wide">{sale.branch_name}</p>
+          {settings.logoUrl && (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img
+              src={settings.logoUrl}
+              alt={settings.businessName}
+              className="mx-auto mb-2 h-14 w-auto max-w-[180px] object-contain"
+            />
+          )}
+          <p className="text-base font-bold uppercase tracking-wide">{settings.businessName}</p>
+          <p className="text-xs font-medium text-neutral-600">{sale.branch_name}</p>
           {sale.branch_address && <p className="text-xs text-neutral-500">{sale.branch_address}</p>}
           {(sale.branch_city || sale.branch_state) && (
             <p className="text-xs text-neutral-500">
@@ -132,12 +142,14 @@ export default async function VentaTicketPage({ params }: { params: Promise<{ id
 
         <TicketDivider />
 
-        <p className="text-center text-xs text-neutral-500">¡Gracias por su compra!</p>
+        {settings.ticketFooter && (
+          <p className="text-center text-xs text-neutral-500">{settings.ticketFooter}</p>
+        )}
         <p className="text-center text-xs text-neutral-500">Documento sin validez fiscal.</p>
       </TicketPaper>
 
       <TicketActions
-        message={`Ticket de compra ${sale.folio} por ${formatCurrency(num(sale.total))} — ${sale.branch_name}`}
+        message={`Ticket de compra ${sale.folio} por ${formatCurrency(num(sale.total))} — ${settings.businessName}`}
         phone={sale.customer_phone}
       />
     </>

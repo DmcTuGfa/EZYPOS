@@ -89,7 +89,7 @@ export const DEMO_BRANCHES: Branch[] = [
 export const DEMO_USERS: User[] = [
   {
     id: 'user-admin',
-    email: 'admin@ventamx.com',
+    email: 'admin@ezypos.com',
     passwordHash: 'admin123', // En producción sería hash bcrypt
     name: 'Administrador General',
     roleId: 'role-admin',
@@ -101,7 +101,7 @@ export const DEMO_USERS: User[] = [
   },
   {
     id: 'user-supervisor',
-    email: 'supervisor@ventamx.com',
+    email: 'supervisor@ezypos.com',
     passwordHash: 'supervisor123',
     name: 'María García López',
     roleId: 'role-supervisor',
@@ -113,7 +113,7 @@ export const DEMO_USERS: User[] = [
   },
   {
     id: 'user-cajero',
-    email: 'cajero@ventamx.com',
+    email: 'cajero@ezypos.com',
     passwordHash: 'cajero123',
     name: 'Juan Pérez Hernández',
     roleId: 'role-cashier',
@@ -125,7 +125,7 @@ export const DEMO_USERS: User[] = [
   },
   {
     id: 'user-cajero2',
-    email: 'cajero2@ventamx.com',
+    email: 'cajero2@ezypos.com',
     passwordHash: 'cajero123',
     name: 'Ana Martínez Ruiz',
     roleId: 'role-cashier',
@@ -641,14 +641,14 @@ export const DEMO_CASH_REGISTERS: CashRegister[] = [
 // --- CONFIGURACIÓN DEL NEGOCIO ---
 
 export const DEMO_BUSINESS_SETTINGS: BusinessSettings = {
-  businessName: 'VentaMX Demo',
+  businessName: 'EZYPOS',
   logo: '',
   rfc: 'VDM210101ABC',
   taxRegime: '601',
   postalCode: '03100',
   address: 'Av. Insurgentes Sur 1234, Col. Del Valle, CDMX',
   phone: '55 1234 5678',
-  email: 'contacto@ventamx.com',
+  email: 'contacto@ezypos.com',
   defaultTaxRate: 16,
   currency: 'MXN',
   ticketFooter: 'Gracias por su compra. Vuelva pronto.',

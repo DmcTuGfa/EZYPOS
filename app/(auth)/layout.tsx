@@ -7,6 +7,7 @@ import { AppSidebar } from '@/components/layout/app-sidebar'
 import { AppHeader } from '@/components/layout/app-header'
 import { useAuthStore } from '@/lib/stores/auth-store'
 import { useBranchStore } from '@/lib/stores/branch-store'
+import { useSettingsStore } from '@/lib/stores/settings-store'
 import { Spinner } from '@/components/ui/spinner'
 
 export default function AuthLayout({
@@ -17,12 +18,17 @@ export default function AuthLayout({
   const router = useRouter()
   const { user, isInitialized, initialize } = useAuthStore()
   const { loadBranches, setCurrentBranchById, currentBranch } = useBranchStore()
+  const { loadSettings } = useSettingsStore()
 
   useEffect(() => {
     if (!isInitialized) {
       initialize()
     }
   }, [initialize, isInitialized])
+
+  useEffect(() => {
+    void loadSettings()
+  }, [loadSettings])
 
   useEffect(() => {
     if (isInitialized && !user) {

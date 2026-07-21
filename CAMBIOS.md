@@ -115,3 +115,74 @@ Incluye tarjetas de totales y **exportación a CSV** (abre en Excel con acentos 
 - No se agregaron dependencias nuevas.
 - Verificado con `next build` (compila correctamente).
 - Los comprobantes son páginas **públicas** por diseño, para que el cliente pueda abrir el enlace sin cuenta. El ID es un UUID, no adivinable. Si más adelante quieres que caduquen o pedir un código, se puede agregar un token con vencimiento.
+
+---
+
+# Segunda entrega
+
+## 7. Dashboard con selector de fechas
+Nuevo panel de filtros con:
+- **Periodos rápidos:** Hoy, Ayer, Últimos 7 días, Este mes, Mes pasado, Este año.
+- **Rango personalizado:** dos campos de fecha para ver un día específico o cualquier rango.
+- **Alcance:** sucursal actual o todas las sucursales.
+
+La gráfica ajusta sola su detalle según el rango: **por hora** si es un solo día, **por día** hasta ~70 días, y **por mes** en rangos largos (por ejemplo un año completo).
+
+La comparación "vs anterior" ya no es contra ayer fijo: compara contra el periodo anterior del mismo tamaño (mes contra mes, año contra año, etc.).
+
+**Bugs corregidos en el dashboard:**
+- Leía existencias con `db.productStock.getAll()` (almacenamiento en memoria, siempre vacío), por lo que **todos los productos aparecían con stock bajo**.
+- Los productos más vendidos salían de `db.saleItems.getBySaleId()`, también vacío, así que la lista **siempre estaba en blanco**.
+- Las ventas no se filtraban por sucursal: el dashboard mezclaba todas.
+
+Ahora todo se calcula en la base de datos con la nueva API `/api/reports/dashboard`, que agrega por rango de fechas y sucursal (sin los límites de 500 registros que tenía `/api/bootstrap`).
+
+**Archivos:** `app/api/reports/dashboard/route.ts`, `app/(auth)/dashboard/page.tsx`
+
+---
+
+## 8. Sucursales: confirmación y protección de datos
+
+### Confirmación antes de dar de baja
+Antes el botón daba de baja la sucursal de inmediato, sin preguntar. Ahora abre un diálogo de confirmación que primero **revisa qué información tiene la sucursal**.
+
+### Dos comportamientos según el contenido
+- **Con información** (ventas, cortes, movimientos de inventario, abonos, usuarios asignados o productos con existencia): solo se permite **desactivar**. El diálogo muestra el desglose de lo que hay para que sepas por qué. La información se conserva completa.
+- **Sin información**: puedes elegir entre **desactivar** o **eliminar definitivamente**.
+
+También se bloquea dar de baja la **única sucursal activa**, para no dejar el sistema sin operación.
+
+### Reactivar sucursales
+Antes, al desactivar una sucursal desaparecía de la lista y no había forma de recuperarla desde la interfaz. Ahora la pantalla muestra también las desactivadas (atenuadas, con etiqueta "Desactivada") y un botón **Reactivar**.
+
+**Archivos:** `app/api/branches/[id]/route.ts`, `app/api/branches/route.ts`, `app/(auth)/branches/page.tsx`
+
+---
+
+# Tercera entrega
+
+## 9. Facturación desactivada (reversible)
+- El módulo de facturación **no se eliminó, se apagó** con un interruptor (`invoicingEnabled`, apagado por defecto).
+- "Facturación" desaparece del menú lateral mientras esté apagado.
+- Si alguien entra directo a `/invoices`, ve una pantalla que explica que el módulo no está conectado a un PAC autorizado y que por eso **no emite CFDI válidos**, con botón a Configuración.
+- Cuando se defina con qué negocios se implementará y se contrate el timbrado, se activa con un switch en Configuración (solo administradores).
+
+**Archivos:** `app/(auth)/invoices/page.tsx`, `components/layout/app-sidebar.tsx`
+
+## 10. Renombrado a EZYPOS
+Se eliminó "VentaMX" de todo el sistema: título del navegador, menú lateral, pantalla de inicio, nombre del paquete, correos de ejemplo y README. El pie del login ahora dice "Powered by EZYPOS".
+
+## 11. Nombre y logo configurables por negocio
+Nueva tarjeta **Identidad del negocio** en Configuración (solo administradores):
+- **Nombre del negocio** — se muestra en el login, el menú lateral y los comprobantes digitales.
+- **Frase de la pantalla de inicio** — el texto bajo el nombre en el login.
+- **Logo** — se sube desde el dispositivo (PNG/JPG, máx. 300 KB). Sustituye al ícono en login, menú y encabezado de los tickets. Botón para quitarlo y volver al ícono por defecto.
+- **Mensaje al pie del ticket** — personalizable por negocio.
+- **Switch de facturación** — para reactivar el módulo cuando esté listo.
+
+Infraestructura: tabla `app_settings` (se crea sola), API `/api/settings` (GET/PUT), store `settings-store`. Si no se configura nada, el sistema muestra "EZYPOS" por defecto.
+
+**Nota de alcance:** la configuración es una por instalación. Si en el futuro varios negocios comparten la misma base de datos, el nombre y logo deberán moverse a nivel sucursal.
+
+**Archivos:** `lib/config/app-settings.ts`, `lib/server/settings.ts`, `app/api/settings/route.ts`, `lib/stores/settings-store.ts`, `lib/server/setup.ts`, `app/(auth)/settings/page.tsx`, `app/login/page.tsx`, `components/layout/app-sidebar.tsx`, `app/(auth)/layout.tsx`, `app/ticket/venta/[id]/page.tsx`, `app/ticket/abono/[id]/page.tsx`
+
