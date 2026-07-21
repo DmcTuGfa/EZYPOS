@@ -69,6 +69,24 @@ export interface Category {
   createdAt: Date
 }
 
+/** Porción o presentación de venta: 1/4 kg, 1/2 kg, 1 kg, etc. */
+export interface ProductPortion {
+  id: string
+  /** Etiqueta visible: "1/4", "1/2 kg", "1 kg" */
+  label: string
+  /** Cantidad que descuenta del inventario, en la unidad del producto (0.25, 0.5, 1) */
+  quantity: number
+  /** Precio de esta porción */
+  price: number
+}
+
+/** Extra o complemento con costo adicional: cueritos, carne, pata, etc. */
+export interface ProductExtra {
+  id: string
+  label: string
+  price: number
+}
+
 export interface Product {
   id: string
   sku: string
@@ -83,6 +101,8 @@ export interface Product {
   unit: string
   satKey: string
   minStock: number
+  portions: ProductPortion[]
+  extras: ProductExtra[]
   isActive: boolean
   createdAt: Date
   updatedAt: Date
@@ -225,6 +245,28 @@ export interface SalePayment {
   createdAt: Date
 }
 
+export type CustomerPaymentStatus = 'active' | 'cancelled'
+
+export interface CustomerPayment {
+  id: string
+  folio: string
+  customerId: string
+  customer?: Customer
+  branchId: string
+  branch?: Branch
+  userId: string
+  user?: User
+  cashSessionId: string | null
+  concept: string
+  amount: number
+  totalAmount: number | null
+  method: PaymentMethod
+  reference: string
+  notes: string
+  status: CustomerPaymentStatus
+  createdAt: Date
+}
+
 export interface Invoice {
   id: string
   saleId: string
@@ -295,12 +337,18 @@ export interface AuditLog {
 // --- TIPOS DE CARRITO ---
 
 export interface CartItem {
+  /** Identificador único de la línea (el mismo producto puede ir con distintas porciones/extras) */
+  lineId: string
   productId: string
   product: Product
   quantity: number
   unitPrice: number
   taxRate: number
   discountAmount: number
+  /** Porción elegida (null = precio normal del producto) */
+  portion?: ProductPortion | null
+  /** Extras agregados a esta línea */
+  extras?: ProductExtra[]
 }
 
 export interface CartDiscount {

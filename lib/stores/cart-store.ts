@@ -3,7 +3,7 @@
 // ===========================================
 
 import { create } from 'zustand'
-import type { CartItem, CartDiscount, Product, Customer, PaymentMethod } from '@/lib/types'
+import type { CartItem, CartDiscount, Product, ProductExtra, ProductPortion, Customer, PaymentMethod } from '@/lib/types'
 
 interface Payment {
   method: PaymentMethod
@@ -20,10 +20,10 @@ interface CartState {
   
   // Computed (getters)
   // Actions
-  addItem: (product: Product, quantity?: number) => void
-  updateItemQuantity: (productId: string, quantity: number) => void
-  removeItem: (productId: string) => void
-  setItemDiscount: (productId: string, amount: number) => void
+  addItem: (product: Product, quantity?: number, options?: { portion?: ProductPortion | null; extras?: ProductExtra[] }) => void
+  updateItemQuantity: (lineId: string, quantity: number) => void
+  removeItem: (lineId: string) => void
+  setItemDiscount: (lineId: string, amount: number) => void
   setCustomer: (customer: Customer | null) => void
   setDiscount: (discount: CartDiscount | null) => void
   addPayment: (payment: Payment) => void
@@ -50,12 +50,23 @@ export const useCartStore = create<CartState>((set, get) => ({
   payments: [],
   notes: '',
 
-  addItem: (product: Product, quantity = 1) => {
+  addItem: (product: Product, quantity = 1, options) => {
     const { items } = get()
-    const existingIndex = items.findIndex((item) => item.productId === product.id)
-    
+    const portion = options?.portion || null
+    const extras = options?.extras || []
+    const extrasTotal = extras.reduce((sum, extra) => sum + Number(extra.price || 0), 0)
+    const unitPrice = (portion ? portion.price : product.salePrice) + extrasTotal
+
+    // Dos líneas se combinan solo si son idénticas (misma porción y mismos extras)
+    const signature = (p: ProductPortion | null, e: ProductExtra[]) =>
+      `${p?.id || ''}|${e.map((x) => x.id).sort().join(',')}`
+    const existingIndex = items.findIndex(
+      (item) =>
+        item.productId === product.id &&
+        signature(item.portion || null, item.extras || []) === signature(portion, extras)
+    )
+
     if (existingIndex >= 0) {
-      // Update quantity of existing item
       const newItems = [...items]
       newItems[existingIndex] = {
         ...newItems[existingIndex],
@@ -63,42 +74,44 @@ export const useCartStore = create<CartState>((set, get) => ({
       }
       set({ items: newItems })
     } else {
-      // Add new item
       const newItem: CartItem = {
+        lineId: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
         productId: product.id,
         product,
         quantity,
-        unitPrice: product.salePrice,
+        unitPrice,
         taxRate: product.taxRate,
         discountAmount: 0,
+        portion,
+        extras,
       }
       set({ items: [...items, newItem] })
     }
   },
 
-  updateItemQuantity: (productId: string, quantity: number) => {
+  updateItemQuantity: (lineId: string, quantity: number) => {
     const { items } = get()
     if (quantity <= 0) {
-      set({ items: items.filter((item) => item.productId !== productId) })
+      set({ items: items.filter((item) => item.lineId !== lineId) })
     } else {
       set({
         items: items.map((item) =>
-          item.productId === productId ? { ...item, quantity } : item
+          item.lineId === lineId ? { ...item, quantity } : item
         ),
       })
     }
   },
 
-  removeItem: (productId: string) => {
+  removeItem: (lineId: string) => {
     const { items } = get()
-    set({ items: items.filter((item) => item.productId !== productId) })
+    set({ items: items.filter((item) => item.lineId !== lineId) })
   },
 
-  setItemDiscount: (productId: string, amount: number) => {
+  setItemDiscount: (lineId: string, amount: number) => {
     const { items } = get()
     set({
       items: items.map((item) =>
-        item.productId === productId ? { ...item, discountAmount: amount } : item
+        item.lineId === lineId ? { ...item, discountAmount: amount } : item
       ),
     })
   },

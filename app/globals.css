@@ -127,3 +127,15 @@
 
 :root { color-scheme: light; }
 .dark { color-scheme: dark; }
+
+/* --- Impresión de comprobantes / tickets --- */
+@media print {
+  .no-print { display: none !important; }
+  html, body {
+    background: #fff !important;
+    color: #000 !important;
+    margin: 0 !important;
+    padding: 0 !important;
+  }
+  @page { margin: 8mm; }
+}

@@ -9,8 +9,8 @@ const _geist = Geist({ subsets: ["latin"] });
 const _geistMono = Geist_Mono({ subsets: ["latin"] });
 
 export const metadata: Metadata = {
-  title: 'VentaMX - Sistema de Punto de Venta',
-  description: 'Sistema de Punto de Venta para PyMEs mexicanas con multi-sucursal, corte de caja y facturación.',
+  title: 'EZYPOS - Sistema de Punto de Venta',
+  description: 'Sistema de Punto de Venta para PyMEs mexicanas con multi-sucursal, corte de caja y control de inventario.',
   generator: 'v0.app',
   icons: {
     icon: [

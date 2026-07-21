@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react"
 import { BarcodeScanButton } from "@/components/barcode/barcode-scanner-modal"
 
-import { Plus, Search, Package, Edit, Trash2, AlertTriangle, ScanLine } from "lucide-react"
+import { Plus, Search, Package, Edit, Trash2, AlertTriangle, ScanLine, Layers, X } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -33,6 +33,8 @@ import {
 import { Badge } from "@/components/ui/badge"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
+import { Separator } from "@/components/ui/separator"
+import type { ProductExtra, ProductPortion } from "@/lib/types"
 import { Switch } from "@/components/ui/switch"
 import { useProductsStore } from "@/lib/stores/products-store"
 import { useBranchStore } from "@/lib/stores/branch-store"
@@ -46,6 +48,8 @@ export default function ProductsPage() {
   const [searchTerm, setSearchTerm] = useState("")
   const [selectedCategory, setSelectedCategory] = useState<string>("all")
   const [isDialogOpen, setIsDialogOpen] = useState(false)
+  const [portions, setPortions] = useState<ProductPortion[]>([])
+  const [extras, setExtras] = useState<ProductExtra[]>([])
   const [editingProduct, setEditingProduct] = useState<Product | null>(null)
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false)
   const [productToDelete, setProductToDelete] = useState<Product | null>(null)
@@ -113,6 +117,8 @@ export default function ProductsPage() {
         satCode: product.satKey || "",
         isActive: product.isActive,
       })
+      setPortions(product.portions || [])
+      setExtras(product.extras || [])
     } else {
       setEditingProduct(null)
       setFormData({
@@ -130,9 +136,23 @@ export default function ProductsPage() {
         satCode: "",
         isActive: true,
       })
+      setPortions([])
+      setExtras([])
     }
     setIsDialogOpen(true)
   }
+
+  const genOptId = () => `${Date.now()}-${Math.random().toString(36).slice(2, 7)}`
+
+  const addPortion = () => setPortions((prev) => [...prev, { id: genOptId(), label: "", quantity: 1, price: 0 }])
+  const updatePortion = (id: string, data: Partial<ProductPortion>) =>
+    setPortions((prev) => prev.map((portion) => (portion.id === id ? { ...portion, ...data } : portion)))
+  const removePortion = (id: string) => setPortions((prev) => prev.filter((portion) => portion.id !== id))
+
+  const addExtra = () => setExtras((prev) => [...prev, { id: genOptId(), label: "", price: 0 }])
+  const updateExtra = (id: string, data: Partial<ProductExtra>) =>
+    setExtras((prev) => prev.map((extra) => (extra.id === id ? { ...extra, ...data } : extra)))
+  const removeExtra = (id: string) => setExtras((prev) => prev.filter((extra) => extra.id !== id))
 
   async function handleSaveProduct() {
     const productData = {
@@ -148,6 +168,12 @@ export default function ProductsPage() {
       taxRate: parseFloat(formData.taxRate) || 0,
       satKey: formData.satCode || "",
       isActive: formData.isActive,
+      portions: portions
+        .filter((portion) => portion.label.trim() && Number(portion.price) > 0)
+        .map((portion) => ({ ...portion, quantity: Number(portion.quantity) || 1, price: Number(portion.price) })),
+      extras: extras
+        .filter((extra) => extra.label.trim())
+        .map((extra) => ({ ...extra, price: Number(extra.price) || 0 })),
     }
 
     if (editingProduct) {
@@ -517,6 +543,133 @@ export default function ProductsPage() {
                 />
               </div>
             </div>
+
+            <Separator />
+
+            {/* ── Porciones (venta por 1/4, 1/2, 1 kg, etc.) ── */}
+            <div className="space-y-2">
+              <div className="flex items-center justify-between">
+                <Label className="flex items-center gap-2">
+                  <Layers className="h-4 w-4" />
+                  Porciones de venta
+                </Label>
+                <Button type="button" variant="outline" size="sm" onClick={addPortion}>
+                  <Plus className="mr-1 h-3.5 w-3.5" />
+                  Agregar
+                </Button>
+              </div>
+              <p className="text-xs text-muted-foreground">
+                Para vender por porción (1/4, 1/2, 1 kg...). La cantidad indica cuánto descuenta del
+                inventario en la unidad del producto: 1/2 kg = 0.5. Si agregas porciones, el precio
+                de venta normal deja de usarse en el punto de venta.
+              </p>
+              {portions.length > 0 && (
+                <div className="space-y-2">
+                  <div className="grid grid-cols-[1fr_90px_100px_32px] gap-2 text-xs text-muted-foreground">
+                    <span>Etiqueta</span>
+                    <span>Cantidad</span>
+                    <span>Precio</span>
+                    <span></span>
+                  </div>
+                  {portions.map((portion) => (
+                    <div key={portion.id} className="grid grid-cols-[1fr_90px_100px_32px] items-center gap-2">
+                      <Input
+                        value={portion.label}
+                        onChange={(e) => updatePortion(portion.id, { label: e.target.value })}
+                        placeholder="Ej. 1/2 kg"
+                        className="h-9"
+                      />
+                      <Input
+                        type="number"
+                        inputMode="decimal"
+                        step="0.01"
+                        min="0.01"
+                        value={portion.quantity}
+                        onChange={(e) => updatePortion(portion.id, { quantity: parseFloat(e.target.value) || 0 })}
+                        placeholder="0.5"
+                        className="h-9"
+                      />
+                      <Input
+                        type="number"
+                        inputMode="decimal"
+                        step="0.01"
+                        min="0"
+                        value={portion.price}
+                        onChange={(e) => updatePortion(portion.id, { price: parseFloat(e.target.value) || 0 })}
+                        placeholder="0.00"
+                        className="h-9"
+                      />
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon"
+                        className="h-9 w-8 text-destructive hover:text-destructive"
+                        onClick={() => removePortion(portion.id)}
+                      >
+                        <X className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* ── Extras (cueritos, carne, pata...) ── */}
+            <div className="space-y-2">
+              <div className="flex items-center justify-between">
+                <Label className="flex items-center gap-2">
+                  <Plus className="h-4 w-4" />
+                  Extras
+                </Label>
+                <Button type="button" variant="outline" size="sm" onClick={addExtra}>
+                  <Plus className="mr-1 h-3.5 w-3.5" />
+                  Agregar
+                </Button>
+              </div>
+              <p className="text-xs text-muted-foreground">
+                Complementos con costo adicional (cueritos, carne, pata...). Precio 0 = sin costo.
+              </p>
+              {extras.length > 0 && (
+                <div className="space-y-2">
+                  <div className="grid grid-cols-[1fr_100px_32px] gap-2 text-xs text-muted-foreground">
+                    <span>Etiqueta</span>
+                    <span>Precio extra</span>
+                    <span></span>
+                  </div>
+                  {extras.map((extra) => (
+                    <div key={extra.id} className="grid grid-cols-[1fr_100px_32px] items-center gap-2">
+                      <Input
+                        value={extra.label}
+                        onChange={(e) => updateExtra(extra.id, { label: e.target.value })}
+                        placeholder="Ej. Cueritos"
+                        className="h-9"
+                      />
+                      <Input
+                        type="number"
+                        inputMode="decimal"
+                        step="0.01"
+                        min="0"
+                        value={extra.price}
+                        onChange={(e) => updateExtra(extra.id, { price: parseFloat(e.target.value) || 0 })}
+                        placeholder="0.00"
+                        className="h-9"
+                      />
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon"
+                        className="h-9 w-8 text-destructive hover:text-destructive"
+                        onClick={() => removeExtra(extra.id)}
+                      >
+                        <X className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            <Separator />
 
             <div className="flex items-center gap-2">
               <Switch

@@ -1,7 +1,9 @@
 "use client"
 
 import { useEffect } from 'react'
-import { BarChart3, PackageSearch, Receipt } from 'lucide-react'
+import Link from 'next/link'
+import { ArrowUpDown, BarChart3, PackageSearch, Receipt } from 'lucide-react'
+import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { useBranchStore } from '@/lib/stores/branch-store'
@@ -18,9 +20,17 @@ export default function ReportsPage() {
 
   return (
     <div className="flex flex-col gap-6 p-6">
-      <div>
-        <h1 className="text-2xl font-bold tracking-tight">Reportes</h1>
-        <p className="text-muted-foreground">Resumen comercial con datos de la sucursal activa.</p>
+      <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+        <div>
+          <h1 className="text-2xl font-bold tracking-tight">Reportes</h1>
+          <p className="text-muted-foreground">Resumen comercial con datos de la sucursal activa.</p>
+        </div>
+        <Button asChild variant="outline" className="w-full md:w-auto">
+          <Link href="/reports/products">
+            <ArrowUpDown className="mr-2 h-4 w-4" />
+            Ingresos y egresos de productos
+          </Link>
+        </Button>
       </div>
 
       <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-5">

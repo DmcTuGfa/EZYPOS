@@ -79,7 +79,7 @@ export function AppHeader() {
       }
     }
     
-    return { title: 'VentaMX' }
+    return { title: 'Inicio' }
   }
 
   const routeInfo = getRouteInfo()

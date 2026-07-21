@@ -20,7 +20,7 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
   if (!current.rows[0]) return NextResponse.json({ error: 'Producto no encontrado' }, { status: 404 })
   const c = current.rows[0]
   const row = await pool.query(
-    `UPDATE products SET sku=$2, barcode=$3, name=$4, description=$5, category_id=$6, sale_price=$7, purchase_price=$8, tax_rate=$9, unit=$10, sat_key=$11, min_stock=$12, is_active=$13, updated_at=NOW() WHERE id=$1 RETURNING *`,
+    `UPDATE products SET sku=$2, barcode=$3, name=$4, description=$5, category_id=$6, sale_price=$7, purchase_price=$8, tax_rate=$9, unit=$10, sat_key=$11, min_stock=$12, portions=$13, extras=$14, is_active=$15, updated_at=NOW() WHERE id=$1 RETURNING *`,
     [
       id,
       data.sku ?? c.sku,
@@ -34,6 +34,8 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
       (data.unit ?? c.unit ?? 'PZA').toUpperCase(),
       data.satKey ?? data.satCode ?? c.sat_key,
       Number(data.minStock ?? c.min_stock),
+      JSON.stringify(Array.isArray(data.portions) ? data.portions : (Array.isArray(c.portions) ? c.portions : [])),
+      JSON.stringify(Array.isArray(data.extras) ? data.extras : (Array.isArray(c.extras) ? c.extras : [])),
       data.isActive ?? c.is_active,
     ]
   )

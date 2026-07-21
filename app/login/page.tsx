@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { useAuthStore } from '@/lib/stores/auth-store'
+import { useSettingsStore } from '@/lib/stores/settings-store'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -14,6 +15,7 @@ import { Store, AlertCircle, Eye, EyeOff } from 'lucide-react'
 export default function LoginPage() {
   const router = useRouter()
   const { login, isLoading, error, clearError, user, initialize, isInitialized } = useAuthStore()
+  const { settings, loadSettings } = useSettingsStore()
   
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
@@ -24,6 +26,10 @@ export default function LoginPage() {
       initialize()
     }
   }, [initialize, isInitialized])
+
+  useEffect(() => {
+    void loadSettings()
+  }, [loadSettings])
 
   useEffect(() => {
     if (user) {
@@ -41,29 +47,29 @@ export default function LoginPage() {
     }
   }
 
-  const handleDemoLogin = async (demoEmail: string, demoPassword: string) => {
-    setEmail(demoEmail)
-    setPassword(demoPassword)
-    clearError()
-    
-    const success = await login(demoEmail, demoPassword)
-    if (success) {
-      router.push('/pos')
-    }
-  }
-
   return (
     <div className="min-h-screen flex items-center justify-center bg-muted/30 p-4">
       <div className="w-full max-w-md space-y-6">
         {/* Logo y Título */}
         <div className="text-center space-y-2">
           <div className="flex items-center justify-center gap-2">
-            <div className="flex items-center justify-center w-12 h-12 rounded-xl bg-primary text-primary-foreground">
-              <Store className="w-7 h-7" />
-            </div>
+            {settings.logoUrl ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img
+                src={settings.logoUrl}
+                alt={settings.businessName}
+                className="h-16 w-auto max-w-[220px] object-contain"
+              />
+            ) : (
+              <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-primary text-primary-foreground">
+                <Store className="h-7 w-7" />
+              </div>
+            )}
           </div>
-          <h1 className="text-2xl font-bold tracking-tight">VentaMX</h1>
-          <p className="text-muted-foreground text-sm">Sistema de Punto de Venta</p>
+          <h1 className="text-2xl font-bold tracking-tight">{settings.businessName}</h1>
+          {settings.tagline && (
+            <p className="text-sm text-muted-foreground">{settings.tagline}</p>
+          )}
         </div>
 
         {/* Card de Login */}
@@ -145,56 +151,8 @@ export default function LoginPage() {
           </CardContent>
         </Card>
 
-        {/* Usuarios Demo */}
-        <Card className="border-dashed">
-          <CardHeader className="pb-3">
-            <CardTitle className="text-sm font-medium">Usuarios de Demostración</CardTitle>
-            <CardDescription className="text-xs">
-              Haz clic para iniciar sesión automáticamente
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-2">
-            <Button
-              variant="outline"
-              size="sm"
-              className="w-full justify-start text-left h-auto py-2"
-              onClick={() => handleDemoLogin('admin@ventamx.com', 'admin123')}
-              disabled={isLoading}
-            >
-              <div className="flex flex-col items-start">
-                <span className="font-medium">Administrador</span>
-                <span className="text-xs text-muted-foreground">admin@ventamx.com</span>
-              </div>
-            </Button>
-            <Button
-              variant="outline"
-              size="sm"
-              className="w-full justify-start text-left h-auto py-2"
-              onClick={() => handleDemoLogin('supervisor@ventamx.com', 'supervisor123')}
-              disabled={isLoading}
-            >
-              <div className="flex flex-col items-start">
-                <span className="font-medium">Supervisor</span>
-                <span className="text-xs text-muted-foreground">supervisor@ventamx.com</span>
-              </div>
-            </Button>
-            <Button
-              variant="outline"
-              size="sm"
-              className="w-full justify-start text-left h-auto py-2"
-              onClick={() => handleDemoLogin('cajero@ventamx.com', 'cajero123')}
-              disabled={isLoading}
-            >
-              <div className="flex flex-col items-start">
-                <span className="font-medium">Cajero</span>
-                <span className="text-xs text-muted-foreground">cajero@ventamx.com</span>
-              </div>
-            </Button>
-          </CardContent>
-        </Card>
-
         <p className="text-center text-xs text-muted-foreground">
-          VentaMX v1.0 - Sistema POS para México
+          Powered by EZYPOS
         </p>
       </div>
     </div>

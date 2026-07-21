@@ -16,6 +16,18 @@ export function CartScanButton() {
       return
     }
     const product = results[0]
+    const hasOptions = (product.portions?.length || 0) > 0 || (product.extras?.length || 0) > 0
+    if (hasOptions) {
+      // Con porciones/extras no se puede decidir por el escáner: agregar la primera porción sin extras
+      const portion = product.portions?.[0] || null
+      addItem(product, 1, { portion, extras: [] })
+      toast.success(
+        portion
+          ? `${product.name} (${portion.label}) agregado. Cambia la porción desde el carrito si es otra.`
+          : `${product.name} agregado al carrito`
+      )
+      return
+    }
     addItem(product, 1)
     toast.success(`${product.name} agregado al carrito`)
   }

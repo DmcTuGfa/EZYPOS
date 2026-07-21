@@ -9,7 +9,8 @@ import { useCartStore } from '@/lib/stores/cart-store'
 import { useBranchStore } from '@/lib/stores/branch-store'
 import { formatCurrency } from '@/lib/utils/format'
 import { BarcodeScanButton } from '@/components/barcode/barcode-scanner-modal'
-import type { Product } from '@/lib/types'
+import { ProductOptionsModal } from '@/components/pos/product-options-modal'
+import type { Product, ProductExtra, ProductPortion } from '@/lib/types'
 
 interface ProductSearchProps { onProductSelect?: (product: Product) => void }
 
@@ -17,6 +18,7 @@ export function ProductSearch({ onProductSelect }: ProductSearchProps) {
   const [query, setQuery] = useState('')
   const [results, setResults] = useState<Product[]>([])
   const [isOpen, setIsOpen] = useState(false)
+  const [optionsProduct, setOptionsProduct] = useState<Product | null>(null)
   const inputRef = useRef<HTMLInputElement>(null)
   const containerRef = useRef<HTMLDivElement>(null)
   const { searchProducts, loadProducts, getStockByProductAndBranch } = useProductsStore()
@@ -45,11 +47,25 @@ export function ProductSearch({ onProductSelect }: ProductSearchProps) {
   }, [])
 
   const handleSelectProduct = (product: Product) => {
-    addItem(product, 1)
-    onProductSelect?.(product)
+    const hasOptions = (product.portions?.length || 0) > 0 || (product.extras?.length || 0) > 0
+    if (hasOptions) {
+      setOptionsProduct(product)
+    } else {
+      addItem(product, 1)
+      onProductSelect?.(product)
+    }
     setQuery('')
     setIsOpen(false)
     inputRef.current?.focus()
+  }
+
+  const handleConfirmOptions = (
+    product: Product,
+    quantity: number,
+    options: { portion: ProductPortion | null; extras: ProductExtra[] }
+  ) => {
+    addItem(product, quantity, options)
+    onProductSelect?.(product)
   }
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
@@ -127,6 +143,12 @@ export function ProductSearch({ onProductSelect }: ProductSearchProps) {
           </ScrollArea>
         </div>
       )}
+      <ProductOptionsModal
+        product={optionsProduct}
+        open={Boolean(optionsProduct)}
+        onClose={() => setOptionsProduct(null)}
+        onConfirm={handleConfirmOptions}
+      />
     </div>
   )
 }

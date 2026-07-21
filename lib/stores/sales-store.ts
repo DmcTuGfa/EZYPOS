@@ -94,12 +94,27 @@ export const useSalesStore = create<SalesState>((set, get) => ({
       const items = params.items.map((item) => {
         const itemSubtotal = item.unitPrice * item.quantity - item.discountAmount
         const itemTax = itemSubtotal * (item.taxRate / 100)
+
+        // Nombre descriptivo: "Carnitas (1/2 kg) + cueritos, pata"
+        const extrasLabel = (item.extras?.length || 0) > 0
+          ? ` + ${item.extras!.map((extra) => extra.label).join(', ')}`
+          : ''
+        const portionLabel = item.portion ? ` (${item.portion.label})` : ''
+        const productName = `${item.product.name}${portionLabel}${extrasLabel}`
+
+        // Inventario: una porción de 1/2 kg descuenta 0.5 de la existencia.
+        // La cantidad enviada es la real de inventario y el precio unitario se
+        // ajusta para que cantidad x precio = total cobrado.
+        const portionFactor = item.portion ? Number(item.portion.quantity) || 1 : 1
+        const inventoryQuantity = item.quantity * portionFactor
+        const effectiveUnitPrice = portionFactor !== 0 ? item.unitPrice / portionFactor : item.unitPrice
+
         return {
           productId: item.productId,
-          productName: item.product.name,
+          productName,
           productSku: item.product.sku,
-          quantity: item.quantity,
-          unitPrice: item.unitPrice,
+          quantity: inventoryQuantity,
+          unitPrice: effectiveUnitPrice,
           taxRate: item.taxRate,
           taxAmount: itemTax,
           discountAmount: item.discountAmount,

@@ -32,8 +32,8 @@ export async function POST(request: Request) {
   try {
     await client.query('BEGIN')
     const row = await client.query(
-      `INSERT INTO products (id, sku, barcode, name, description, category_id, sale_price, purchase_price, tax_rate, unit, sat_key, min_stock, is_active, created_at, updated_at)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,NOW(),NOW()) RETURNING *`,
+      `INSERT INTO products (id, sku, barcode, name, description, category_id, sale_price, purchase_price, tax_rate, unit, sat_key, min_stock, portions, extras, is_active, created_at, updated_at)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,NOW(),NOW()) RETURNING *`,
       [
         id,
         data.sku,
@@ -47,6 +47,8 @@ export async function POST(request: Request) {
         (data.unit || 'PZA').toUpperCase(),
         data.satKey ?? data.satCode ?? '',
         Number(data.minStock || 0),
+        JSON.stringify(Array.isArray(data.portions) ? data.portions : []),
+        JSON.stringify(Array.isArray(data.extras) ? data.extras : []),
         data.isActive ?? true,
       ]
     )

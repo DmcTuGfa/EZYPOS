@@ -8,6 +8,7 @@ import { Separator } from '@/components/ui/separator'
 import { apiFetch } from '@/lib/api/client'
 import { formatCurrency, formatDate } from '@/lib/utils/format'
 import type { Sale, SaleItem, SalePayment } from '@/lib/types'
+import { TicketLinkButtons } from '@/components/ticket/ticket-link-buttons'
 
 export default function SaleDetailPage() {
   const params = useParams<{ id: string }>()
@@ -60,6 +61,14 @@ export default function SaleDetailPage() {
             <div className="flex justify-between"><span>Subtotal</span><span>{formatCurrency(sale.subtotal)}</span></div>
             <div className="flex justify-between"><span>IVA</span><span>{formatCurrency(sale.taxAmount)}</span></div>
             <div className="flex justify-between font-semibold"><span>Total</span><span>{formatCurrency(sale.total)}</span></div>
+          </div>
+          <Separator />
+          <div>
+            <p className="font-medium mb-2">Comprobante digital</p>
+            <TicketLinkButtons
+              path={`/ticket/venta/${sale.id}`}
+              message={`Ticket de compra ${sale.folio} por ${formatCurrency(sale.total)}`}
+            />
           </div>
           <Separator />
           <div>

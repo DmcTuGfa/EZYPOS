@@ -29,13 +29,19 @@ export function CartList() {
 
           return (
             <div
-              key={item.productId}
+              key={item.lineId}
               className="flex items-start gap-3 p-3 rounded-lg border bg-card"
             >
               <div className="flex-1 min-w-0">
                 <p className="font-medium text-sm leading-tight line-clamp-2">
                   {item.product.name}
+                  {item.portion ? ` (${item.portion.label})` : ''}
                 </p>
+                {(item.extras?.length || 0) > 0 && (
+                  <p className="text-xs text-muted-foreground mt-0.5">
+                    + {item.extras!.map((extra) => extra.label).join(', ')}
+                  </p>
+                )}
                 <p className="text-xs text-muted-foreground mt-0.5 font-mono">
                   {item.product.sku}
                 </p>
@@ -61,7 +67,7 @@ export function CartList() {
                     variant="outline"
                     size="icon"
                     className="h-7 w-7"
-                    onClick={() => updateItemQuantity(item.productId, item.quantity - 1)}
+                    onClick={() => updateItemQuantity(item.lineId, item.quantity - 1)}
                   >
                     <Minus className="h-3 w-3" />
                   </Button>
@@ -71,7 +77,7 @@ export function CartList() {
                     value={item.quantity}
                     onChange={(e) => {
                       const val = parseInt(e.target.value) || 1
-                      updateItemQuantity(item.productId, val)
+                      updateItemQuantity(item.lineId, val)
                     }}
                     className="h-7 w-12 text-center text-sm p-1"
                   />
@@ -79,7 +85,7 @@ export function CartList() {
                     variant="outline"
                     size="icon"
                     className="h-7 w-7"
-                    onClick={() => updateItemQuantity(item.productId, item.quantity + 1)}
+                    onClick={() => updateItemQuantity(item.lineId, item.quantity + 1)}
                   >
                     <Plus className="h-3 w-3" />
                   </Button>
@@ -87,7 +93,7 @@ export function CartList() {
                     variant="ghost"
                     size="icon"
                     className="h-7 w-7 text-destructive hover:text-destructive"
-                    onClick={() => removeItem(item.productId)}
+                    onClick={() => removeItem(item.lineId)}
                   >
                     <Trash2 className="h-3 w-3" />
                   </Button>

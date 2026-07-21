@@ -26,6 +26,7 @@ import { Avatar, AvatarFallback } from '@/components/ui/avatar'
 import { useAuthStore } from '@/lib/stores/auth-store'
 import { useBranchStore } from '@/lib/stores/branch-store'
 import { useCashStore } from '@/lib/stores/cash-store'
+import { useSettingsStore } from '@/lib/stores/settings-store'
 import { getInitials } from '@/lib/utils/format'
 import { toast } from 'sonner'
 import {
@@ -46,6 +47,7 @@ import {
   Wallet,
   CircleDot,
   Calculator,
+  ArrowUpDown,
 } from 'lucide-react'
 
 const mainNavItems = [
@@ -91,12 +93,6 @@ const salesNavItems = [
     icon: Receipt,
     permission: 'sales.view',
   },
-  {
-    title: 'Facturación',
-    url: '/invoices',
-    icon: FileText,
-    permission: 'invoices',
-  },
 ]
 
 const adminNavItems = [
@@ -110,6 +106,12 @@ const adminNavItems = [
     title: 'Reportes',
     url: '/reports',
     icon: BarChart3,
+    permission: 'reports',
+  },
+  {
+    title: 'Ingresos y Egresos',
+    url: '/reports/products',
+    icon: ArrowUpDown,
     permission: 'reports',
   },
   {
@@ -138,6 +140,7 @@ export function AppSidebar() {
   const { user, logout, hasPermission } = useAuthStore()
   const { currentBranch } = useBranchStore()
   const { currentSession } = useCashStore()
+  const { settings } = useSettingsStore()
 
   const handleLogout = () => {
     if (currentSession) {
@@ -148,6 +151,11 @@ export function AppSidebar() {
     logout()
     router.push('/login')
   }
+
+  // La facturación CFDI permanece oculta hasta activarla en Configuración
+  const visibleSalesNavItems = settings.invoicingEnabled
+    ? [...salesNavItems, { title: 'Facturación', url: '/invoices', icon: FileText, permission: 'invoices' }]
+    : salesNavItems
 
   const canView = (permission: string) => {
     if (permission === 'settings') return true
@@ -166,11 +174,20 @@ export function AppSidebar() {
           <SidebarMenuItem>
             <SidebarMenuButton size="lg" asChild>
               <Link href="/pos">
-                <div className="flex aspect-square size-8 items-center justify-center rounded-lg bg-primary text-primary-foreground">
-                  <Store className="size-4" />
-                </div>
+                {settings.logoUrl ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img
+                    src={settings.logoUrl}
+                    alt={settings.businessName}
+                    className="aspect-square size-8 rounded-lg object-contain"
+                  />
+                ) : (
+                  <div className="flex aspect-square size-8 items-center justify-center rounded-lg bg-primary text-primary-foreground">
+                    <Store className="size-4" />
+                  </div>
+                )}
                 <div className="grid flex-1 text-left text-sm leading-tight">
-                  <span className="truncate font-semibold">VentaMX</span>
+                  <span className="truncate font-semibold">{settings.businessName}</span>
                   <span className="truncate text-xs text-muted-foreground">
                     {currentBranch?.name || 'Sin sucursal'}
                   </span>
@@ -254,12 +271,12 @@ export function AppSidebar() {
         )}
 
         {/* Ventas */}
-        {filterItems(salesNavItems).length > 0 && (
+        {filterItems(visibleSalesNavItems).length > 0 && (
           <SidebarGroup>
             <SidebarGroupLabel>Ventas</SidebarGroupLabel>
             <SidebarGroupContent>
               <SidebarMenu>
-                {filterItems(salesNavItems).map((item) => (
+                {filterItems(visibleSalesNavItems).map((item) => (
                   <SidebarMenuItem key={item.url}>
                     <SidebarMenuButton
                       asChild
