@@ -199,6 +199,28 @@ export async function ensureDatabaseSetup() {
     );
   `)
 
+  // --- Tabla de abonos / anticipos de clientes ---
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS customer_payments (
+      id TEXT PRIMARY KEY,
+      folio TEXT NOT NULL UNIQUE,
+      customer_id TEXT NOT NULL REFERENCES customers(id),
+      branch_id TEXT NOT NULL REFERENCES branches(id),
+      user_id TEXT NOT NULL REFERENCES users(id),
+      cash_session_id TEXT NULL REFERENCES cash_sessions(id),
+      concept TEXT NOT NULL DEFAULT '',
+      amount NUMERIC(12,2) NOT NULL DEFAULT 0,
+      total_amount NUMERIC(12,2) NULL,
+      method TEXT NOT NULL DEFAULT 'cash',
+      reference TEXT NOT NULL DEFAULT '',
+      notes TEXT NOT NULL DEFAULT '',
+      status TEXT NOT NULL DEFAULT 'active',
+      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    );
+    CREATE INDEX IF NOT EXISTS idx_customer_payments_customer ON customer_payments(customer_id);
+    CREATE INDEX IF NOT EXISTS idx_customer_payments_branch ON customer_payments(branch_id);
+  `)
+
   const { rows } = await pool.query('SELECT COUNT(*)::int AS count FROM roles')
   if (rows[0]?.count > 0) {
     initialized = true

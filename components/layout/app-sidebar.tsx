@@ -46,6 +46,7 @@ import {
   Wallet,
   CircleDot,
   Calculator,
+  ArrowUpDown,
 } from 'lucide-react'
 
 const mainNavItems = [
@@ -110,6 +111,12 @@ const adminNavItems = [
     title: 'Reportes',
     url: '/reports',
     icon: BarChart3,
+    permission: 'reports',
+  },
+  {
+    title: 'Ingresos y Egresos',
+    url: '/reports/products',
+    icon: ArrowUpDown,
     permission: 'reports',
   },
   {

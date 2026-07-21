@@ -36,7 +36,8 @@ import { useCashStore } from '@/lib/stores/cash-store'
 import { useBranchStore } from '@/lib/stores/branch-store'
 import { useAuthStore } from '@/lib/stores/auth-store'
 import { apiFetch } from '@/lib/api/client'
-import type { CashSession } from '@/lib/types'
+import type { CashSession, Sale } from '@/lib/types'
+import { TicketLinkButtons } from '@/components/ticket/ticket-link-buttons'
 import { formatCurrency, formatDateTime } from '@/lib/utils/format'
 import { toast } from 'sonner'
 import {
@@ -54,6 +55,7 @@ import {
   Plus,
   Minus,
   AlertCircle,
+  Receipt,
 } from 'lucide-react'
 
 interface SessionSummary {
@@ -93,6 +95,8 @@ export default function CashRegisterPage() {
   const [movementAmount, setMovementAmount] = useState('')
   const [movementDescription, setMovementDescription] = useState('')
   const [sessionHistory, setSessionHistory] = useState<CashSession[]>([])
+  const [sessionSales, setSessionSales] = useState<Sale[]>([])
+  const [salesDialogOpen, setSalesDialogOpen] = useState(false)
   const [summary, setSummary] = useState<SessionSummary | null>(null)
   const [isClosing, setIsClosing] = useState(false)
   const [isLoadingRegisters, setIsLoadingRegisters] = useState(false)
@@ -134,6 +138,16 @@ export default function CashRegisterPage() {
   }, [currentBranch])
 
   useEffect(() => { void loadHistory() }, [loadHistory, currentSession])
+
+  const loadSessionSales = useCallback(async () => {
+    if (!currentBranch || !currentSession) { setSessionSales([]); return }
+    try {
+      const data = await apiFetch<{ sales: Sale[] }>(`/api/sales?branchId=${currentBranch.id}`)
+      setSessionSales((data.sales || []).filter((sale) => sale.cashSessionId === currentSession.id))
+    } catch { setSessionSales([]) }
+  }, [currentBranch, currentSession])
+
+  useEffect(() => { void loadSessionSales() }, [loadSessionSales])
 
   useEffect(() => {
     const load = async () => {
@@ -386,6 +400,9 @@ export default function CashRegisterPage() {
                 <Button className="w-full" variant="outline" onClick={() => { setMovementType('withdrawal'); setMovementDialogOpen(true) }}>
                   <Minus className="h-4 w-4 mr-2" />Registrar retiro
                 </Button>
+                <Button className="w-full" variant="outline" onClick={() => { void loadSessionSales(); setSalesDialogOpen(true) }}>
+                  <Receipt className="h-4 w-4 mr-2" />Comprobantes del turno ({sessionSales.length})
+                </Button>
                 <Button className="w-full" variant="destructive" onClick={() => setCloseDialogOpen(true)}>
                   <XCircle className="h-4 w-4 mr-2" />Cerrar caja
                 </Button>
@@ -553,51 +570,166 @@ export default function CashRegisterPage() {
         </DialogContent>
       </Dialog>
 
-      {/* ── Diálogo: Historial ── */}
+      {/* ── Diálogo: Historial de cortes (responsivo) ── */}
       <Dialog open={historyDialogOpen} onOpenChange={setHistoryDialogOpen}>
-        <DialogContent className="max-w-[95vw] sm:max-w-2xl">
+        <DialogContent className="max-h-[90vh] max-w-[95vw] overflow-hidden sm:max-w-3xl">
           <DialogHeader>
             <DialogTitle>Historial de cortes</DialogTitle>
             <DialogDescription>Últimos cierres de caja de {currentBranch?.name}.</DialogDescription>
           </DialogHeader>
-          <ScrollArea className="max-h-[60vh]">
-            <div className="overflow-x-auto">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Caja</TableHead>
-                    <TableHead>Apertura</TableHead>
-                    <TableHead>Cierre</TableHead>
-                    <TableHead>Inicial</TableHead>
-                    <TableHead>Contado</TableHead>
-                    <TableHead>Diferencia</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {sessionHistory.length > 0 ? sessionHistory.map((session) => (
-                    <TableRow key={session.id}>
-                      <TableCell className="text-sm">{getRegisterName(session.cashRegisterId)}</TableCell>
-                      <TableCell className="text-xs">{formatDateTime(session.openedAt)}</TableCell>
-                      <TableCell className="text-xs">{session.closedAt ? formatDateTime(session.closedAt) : '-'}</TableCell>
-                      <TableCell className="text-sm">{formatCurrency(session.openingAmount)}</TableCell>
-                      <TableCell className="text-sm">{formatCurrency(session.closingAmount || 0)}</TableCell>
-                      <TableCell className={`text-sm font-medium ${(session.difference || 0) < 0 ? 'text-red-600' : 'text-green-600'}`}>
-                        {formatCurrency(session.difference || 0)}
-                      </TableCell>
-                    </TableRow>
-                  )) : (
-                    <TableRow>
-                      <TableCell colSpan={6} className="text-center text-muted-foreground text-sm py-8">
-                        No hay historial disponible.
-                      </TableCell>
-                    </TableRow>
-                  )}
-                </TableBody>
-              </Table>
+
+          <ScrollArea className="max-h-[65vh]">
+            {sessionHistory.length === 0 ? (
+              <p className="py-10 text-center text-sm text-muted-foreground">
+                No hay historial disponible.
+              </p>
+            ) : (
+              <>
+                {/* Móvil: tarjetas */}
+                <div className="space-y-3 pr-1 md:hidden">
+                  {sessionHistory.map((session) => {
+                    const difference = session.difference || 0
+                    return (
+                      <div key={session.id} className="rounded-lg border p-3">
+                        <div className="flex items-start justify-between gap-2">
+                          <div className="min-w-0">
+                            <p className="truncate font-medium">{getRegisterName(session.cashRegisterId)}</p>
+                            <p className="text-xs text-muted-foreground">
+                              {session.closedAt ? formatDateTime(session.closedAt) : 'Sin cierre'}
+                            </p>
+                          </div>
+                          <Badge
+                            variant="secondary"
+                            className={
+                              difference < 0
+                                ? 'bg-red-100 text-red-700 dark:bg-red-950/40 dark:text-red-400'
+                                : difference > 0
+                                ? 'bg-amber-100 text-amber-700 dark:bg-amber-950/40 dark:text-amber-400'
+                                : 'bg-green-100 text-green-700 dark:bg-green-950/40 dark:text-green-400'
+                            }
+                          >
+                            {formatCurrency(difference)}
+                          </Badge>
+                        </div>
+
+                        <Separator className="my-3" />
+
+                        <div className="grid grid-cols-2 gap-x-3 gap-y-2 text-sm">
+                          <div>
+                            <p className="text-xs text-muted-foreground">Apertura</p>
+                            <p className="text-xs">{formatDateTime(session.openedAt)}</p>
+                          </div>
+                          <div>
+                            <p className="text-xs text-muted-foreground">Cierre</p>
+                            <p className="text-xs">{session.closedAt ? formatDateTime(session.closedAt) : '—'}</p>
+                          </div>
+                          <div>
+                            <p className="text-xs text-muted-foreground">Monto inicial</p>
+                            <p className="font-medium">{formatCurrency(session.openingAmount)}</p>
+                          </div>
+                          <div>
+                            <p className="text-xs text-muted-foreground">Contado</p>
+                            <p className="font-medium">{formatCurrency(session.closingAmount || 0)}</p>
+                          </div>
+                          <div className="col-span-2">
+                            <p className="text-xs text-muted-foreground">Esperado</p>
+                            <p className="font-medium">{formatCurrency(session.expectedAmount || 0)}</p>
+                          </div>
+                          {session.notes && (
+                            <div className="col-span-2">
+                              <p className="text-xs text-muted-foreground">Notas</p>
+                              <p className="text-xs break-words">{session.notes}</p>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    )
+                  })}
+                </div>
+
+                {/* Escritorio: tabla */}
+                <div className="hidden rounded-md border md:block">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Caja</TableHead>
+                        <TableHead>Apertura</TableHead>
+                        <TableHead>Cierre</TableHead>
+                        <TableHead className="text-right">Inicial</TableHead>
+                        <TableHead className="text-right">Esperado</TableHead>
+                        <TableHead className="text-right">Contado</TableHead>
+                        <TableHead className="text-right">Diferencia</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {sessionHistory.map((session) => (
+                        <TableRow key={session.id}>
+                          <TableCell className="text-sm">{getRegisterName(session.cashRegisterId)}</TableCell>
+                          <TableCell className="text-xs">{formatDateTime(session.openedAt)}</TableCell>
+                          <TableCell className="text-xs">{session.closedAt ? formatDateTime(session.closedAt) : '—'}</TableCell>
+                          <TableCell className="text-right text-sm">{formatCurrency(session.openingAmount)}</TableCell>
+                          <TableCell className="text-right text-sm">{formatCurrency(session.expectedAmount || 0)}</TableCell>
+                          <TableCell className="text-right text-sm">{formatCurrency(session.closingAmount || 0)}</TableCell>
+                          <TableCell
+                            className={`text-right text-sm font-medium ${(session.difference || 0) < 0 ? 'text-red-600' : 'text-green-600'}`}
+                          >
+                            {formatCurrency(session.difference || 0)}
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </div>
+              </>
+            )}
+          </ScrollArea>
+        </DialogContent>
+      </Dialog>
+
+      {/* ── Diálogo: Ventas del turno (comprobantes digitales) ── */}
+      <Dialog open={salesDialogOpen} onOpenChange={setSalesDialogOpen}>
+        <DialogContent className="max-h-[90vh] max-w-[95vw] overflow-hidden sm:max-w-lg">
+          <DialogHeader>
+            <DialogTitle>Ventas del turno</DialogTitle>
+            <DialogDescription>
+              Envía o descarga el comprobante digital cuando no se imprimió el ticket.
+            </DialogDescription>
+          </DialogHeader>
+
+          <ScrollArea className="max-h-[65vh]">
+            <div className="space-y-3 pr-1">
+              {sessionSales.length === 0 ? (
+                <p className="py-10 text-center text-sm text-muted-foreground">
+                  Aún no hay ventas en este turno.
+                </p>
+              ) : (
+                sessionSales.map((sale) => (
+                  <div key={sale.id} className="rounded-lg border p-3">
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="min-w-0">
+                        <p className="font-mono text-sm font-medium">{sale.folio}</p>
+                        <p className="text-xs text-muted-foreground">{formatDateTime(sale.createdAt)}</p>
+                      </div>
+                      <div className="text-right">
+                        <p className="font-semibold">{formatCurrency(sale.total)}</p>
+                        {sale.status === 'cancelled' && (
+                          <Badge variant="destructive" className="mt-1">Cancelada</Badge>
+                        )}
+                      </div>
+                    </div>
+                    <Separator className="my-3" />
+                    <TicketLinkButtons
+                      path={`/ticket/venta/${sale.id}`}
+                      message={`Ticket de compra ${sale.folio} por ${formatCurrency(sale.total)}`}
+                    />
+                  </div>
+                ))
+              )}
             </div>
           </ScrollArea>
         </DialogContent>
       </Dialog>
+
     </div>
   )
 }

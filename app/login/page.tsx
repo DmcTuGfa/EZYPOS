@@ -41,17 +41,6 @@ export default function LoginPage() {
     }
   }
 
-  const handleDemoLogin = async (demoEmail: string, demoPassword: string) => {
-    setEmail(demoEmail)
-    setPassword(demoPassword)
-    clearError()
-    
-    const success = await login(demoEmail, demoPassword)
-    if (success) {
-      router.push('/pos')
-    }
-  }
-
   return (
     <div className="min-h-screen flex items-center justify-center bg-muted/30 p-4">
       <div className="w-full max-w-md space-y-6">
@@ -142,54 +131,6 @@ export default function LoginPage() {
                 )}
               </Button>
             </form>
-          </CardContent>
-        </Card>
-
-        {/* Usuarios Demo */}
-        <Card className="border-dashed">
-          <CardHeader className="pb-3">
-            <CardTitle className="text-sm font-medium">Usuarios de Demostración</CardTitle>
-            <CardDescription className="text-xs">
-              Haz clic para iniciar sesión automáticamente
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-2">
-            <Button
-              variant="outline"
-              size="sm"
-              className="w-full justify-start text-left h-auto py-2"
-              onClick={() => handleDemoLogin('admin@ventamx.com', 'admin123')}
-              disabled={isLoading}
-            >
-              <div className="flex flex-col items-start">
-                <span className="font-medium">Administrador</span>
-                <span className="text-xs text-muted-foreground">admin@ventamx.com</span>
-              </div>
-            </Button>
-            <Button
-              variant="outline"
-              size="sm"
-              className="w-full justify-start text-left h-auto py-2"
-              onClick={() => handleDemoLogin('supervisor@ventamx.com', 'supervisor123')}
-              disabled={isLoading}
-            >
-              <div className="flex flex-col items-start">
-                <span className="font-medium">Supervisor</span>
-                <span className="text-xs text-muted-foreground">supervisor@ventamx.com</span>
-              </div>
-            </Button>
-            <Button
-              variant="outline"
-              size="sm"
-              className="w-full justify-start text-left h-auto py-2"
-              onClick={() => handleDemoLogin('cajero@ventamx.com', 'cajero123')}
-              disabled={isLoading}
-            >
-              <div className="flex flex-col items-start">
-                <span className="font-medium">Cajero</span>
-                <span className="text-xs text-muted-foreground">cajero@ventamx.com</span>
-              </div>
-            </Button>
           </CardContent>
         </Card>
 

@@ -79,7 +79,7 @@ export default function POSPage() {
     setMobileTab('products')
     toast.success('Venta completada exitosamente', {
       description: `Folio: ${saleId}`,
-      action: { label: 'Ver ticket', onClick: () => router.push(`/sales/${saleId}`) },
+      action: { label: 'Ver ticket', onClick: () => window.open(`/ticket/venta/${saleId}`, '_blank') },
     })
   }
 

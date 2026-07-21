@@ -1,5 +1,5 @@
 
-import type { Branch, CashMovement, CashRegister, CashSession, Category, Customer, Product, ProductStock, Role, Sale, SaleItem, SalePayment, User } from '@/lib/types'
+import type { Branch, CashMovement, CustomerPayment, CashRegister, CashSession, Category, Customer, Product, ProductStock, Role, Sale, SaleItem, SalePayment, User } from '@/lib/types'
 
 const d = (value: string | Date | null) => value ? new Date(value) : null
 const n = (value: unknown) => Number(value || 0)
@@ -42,4 +42,8 @@ export function mapSaleItem(r: any): SaleItem {
 }
 export function mapSalePayment(r: any): SalePayment {
   return { id:r.id, saleId:r.sale_id, method:r.method, amount:n(r.amount), reference:r.reference||'', changeAmount:n(r.change_amount), createdAt:new Date(r.created_at) }
+}
+
+export function mapCustomerPayment(r: any): CustomerPayment {
+  return { id:r.id, folio:r.folio, customerId:r.customer_id, branchId:r.branch_id, userId:r.user_id, cashSessionId:r.cash_session_id, concept:r.concept||'', amount:n(r.amount), totalAmount:r.total_amount==null?null:n(r.total_amount), method:r.method, reference:r.reference||'', notes:r.notes||'', status:r.status, createdAt:new Date(r.created_at) }
 }

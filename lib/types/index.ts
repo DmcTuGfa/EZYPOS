@@ -225,6 +225,28 @@ export interface SalePayment {
   createdAt: Date
 }
 
+export type CustomerPaymentStatus = 'active' | 'cancelled'
+
+export interface CustomerPayment {
+  id: string
+  folio: string
+  customerId: string
+  customer?: Customer
+  branchId: string
+  branch?: Branch
+  userId: string
+  user?: User
+  cashSessionId: string | null
+  concept: string
+  amount: number
+  totalAmount: number | null
+  method: PaymentMethod
+  reference: string
+  notes: string
+  status: CustomerPaymentStatus
+  createdAt: Date
+}
+
 export interface Invoice {
   id: string
   saleId: string
